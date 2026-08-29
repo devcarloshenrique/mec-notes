@@ -1,8 +1,20 @@
+pub mod db;
+
 pub mod commands {
+    use std::path::PathBuf;
     use tauri::{
-        AppHandle, LogicalSize, Manager, PhysicalPosition, Position, Size, WebviewWindow,
+        AppHandle, LogicalSize, Manager, PhysicalPosition, Position, Size, State, WebviewWindow,
     };
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+
+    use crate::db::{
+        db_delete_note, db_export_to, db_get_note_by_id, db_get_notes, db_get_settings,
+        db_import_from, db_save_note, db_update_setting, AppSettings, DbState, Note,
+    };
+
+    // ==========================================
+    // Comandos de Janela e Atalhos
+    // ==========================================
 
     #[tauri::command]
     pub fn toggle_window_visibility(app: AppHandle) -> Result<bool, String> {
@@ -109,14 +121,128 @@ pub mod commands {
 
         Ok(())
     }
+
+    // ==========================================
+    // Comandos SQLite de Notas (CRUD)
+    // ==========================================
+
+    #[tauri::command]
+    pub fn get_notes(state: State<'_, DbState>) -> Result<Vec<Note>, String> {
+        let conn = state
+            .conn
+            .lock()
+            .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+        db_get_notes(&conn)
+    }
+
+    #[tauri::command]
+    pub fn get_note_by_id(state: State<'_, DbState>, id: String) -> Result<Option<Note>, String> {
+        let conn = state
+            .conn
+            .lock()
+            .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+        db_get_note_by_id(&conn, &id)
+    }
+
+    #[tauri::command]
+    pub fn save_note(state: State<'_, DbState>, note: Note) -> Result<Note, String> {
+        let conn = state
+            .conn
+            .lock()
+            .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+        db_save_note(&conn, note)
+    }
+
+    #[tauri::command]
+    pub fn delete_note(state: State<'_, DbState>, id: String) -> Result<bool, String> {
+        let conn = state
+            .conn
+            .lock()
+            .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+        db_delete_note(&conn, &id)
+    }
+
+    // ==========================================
+    // Comandos SQLite de Configurações
+    // ==========================================
+
+    #[tauri::command]
+    pub fn get_settings(state: State<'_, DbState>) -> Result<AppSettings, String> {
+        let conn = state
+            .conn
+            .lock()
+            .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+        db_get_settings(&conn)
+    }
+
+    #[tauri::command]
+    pub fn update_hotkey_setting(
+        app: AppHandle,
+        state: State<'_, DbState>,
+        hotkey: String,
+    ) -> Result<(), String> {
+        // Valida e registra o atalho global primeiro
+        register_global_shortcut(app, hotkey.clone())?;
+
+        // Atualiza a configuração no SQLite
+        let conn = state
+            .conn
+            .lock()
+            .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+        db_update_setting(&conn, "hotkey", &hotkey)?;
+
+        Ok(())
+    }
+
+    // ==========================================
+    // Comandos de Exportação e Importação de Banco
+    // ==========================================
+
+    #[tauri::command]
+    pub fn export_notes_db(
+        state: State<'_, DbState>,
+        destination_path: String,
+    ) -> Result<String, String> {
+        let dest = PathBuf::from(&destination_path);
+        db_export_to(&state.db_path, &dest)?;
+        Ok(format!(
+            "Banco de dados exportado com sucesso para: {}",
+            dest.display()
+        ))
+    }
+
+    #[tauri::command]
+    pub fn import_notes_db(
+        app: AppHandle,
+        state: State<'_, DbState>,
+        source_path: String,
+    ) -> Result<AppSettings, String> {
+        let src = PathBuf::from(&source_path);
+        let settings = db_import_from(&state, &src)?;
+
+        // Re-sincroniza o atalho global conforme as configurações importadas
+        if !settings.hotkey.is_empty() {
+            let _ = register_global_shortcut(app, settings.hotkey.clone());
+        }
+
+        Ok(settings)
+    }
+
+    #[tauri::command]
+    pub fn get_db_path(state: State<'_, DbState>) -> Result<String, String> {
+        Ok(state.db_path.to_string_lossy().to_string())
+    }
 }
 
+use std::sync::Mutex;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     Manager,
 };
 use tauri_plugin_global_shortcut::ShortcutState;
+
+use crate::db::{get_default_db_path, init_db, DbState};
 
 pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let show_item = MenuItem::with_id(app, "show", "Abrir Notas", true, None::<&str>)?;
@@ -167,7 +293,17 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 mod tests;
 
 pub fn run() {
+    let db_path = get_default_db_path().expect("Falha ao resolver caminho de ~/Documents/notas.db");
+    log::info!("Inicializando banco de dados SQLite em: {:?}", db_path);
+
+    let conn = init_db(&db_path).expect("Falha ao inicializar banco de dados SQLite");
+    let db_state = DbState {
+        conn: Mutex::new(conn),
+        db_path,
+    };
+
     tauri::Builder::default()
+        .manage(db_state)
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_shortcut("Ctrl+Shift+Space")
@@ -196,7 +332,16 @@ pub fn run() {
             commands::set_floating_mode,
             commands::set_window_mode,
             commands::minimize_to_tray,
-            commands::register_global_shortcut
+            commands::register_global_shortcut,
+            commands::get_notes,
+            commands::get_note_by_id,
+            commands::save_note,
+            commands::delete_note,
+            commands::get_settings,
+            commands::update_hotkey_setting,
+            commands::export_notes_db,
+            commands::import_notes_db,
+            commands::get_db_path,
         ])
         .run(tauri::generate_context!())
         .expect("erro ao executar aplicação Tauri");
