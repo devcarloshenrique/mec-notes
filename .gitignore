@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-isolation
+src-tauri/target
+.agent_context
+.multica
+.opencode
+*.log
+.env
+.DS_Store
+Thumbs.db
