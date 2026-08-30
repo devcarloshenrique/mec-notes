@@ -390,12 +390,15 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            // Configura o ícone nativo da barra de tarefas e da bandeja
+            let icon = app.default_window_icon().cloned();
+
             setup_tray(app)?;
 
             // Iniciar com posição do modo flutuante e aplicar ícone explícito na janela
             if let Some(window) = app.get_webview_window("main") {
-                if let Some(icon) = app.default_window_icon() {
-                    let _ = window.set_icon(icon.clone());
+                if let Some(ref ic) = icon {
+                    let _ = window.set_icon(ic.clone());
                 }
                 let _ = commands::set_floating_mode(window);
             }

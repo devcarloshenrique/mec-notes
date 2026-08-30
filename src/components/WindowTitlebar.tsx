@@ -48,7 +48,7 @@ export const WindowTitlebar: React.FC<Props> = ({
         <img
           src="/logo_native.png"
           alt="MEC Notes Logo"
-          className="h-[14px] w-auto select-none opacity-80"
+          className="h-[16px] w-auto select-none opacity-80"
           draggable={false}
         />
       </div>
