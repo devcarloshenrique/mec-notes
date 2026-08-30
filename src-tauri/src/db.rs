@@ -38,17 +38,26 @@ impl DbState {
     }
 }
 
-/// Retorna o caminho padrão do banco de dados: ~/Documents/notas.db
+/// Retorna o caminho padrão do banco de dados: ~/Documents/MecNotes/notas.db
 pub fn get_default_db_path() -> Result<PathBuf, String> {
     let docs_dir = dirs::document_dir()
         .ok_or_else(|| "Não foi possível localizar a pasta Documentos do usuário".to_string())?;
 
-    if !docs_dir.exists() {
-        fs::create_dir_all(&docs_dir)
-            .map_err(|e| format!("Falha ao criar diretório de Documentos: {}", e))?;
+    let app_dir = docs_dir.join("MecNotes");
+    if !app_dir.exists() {
+        fs::create_dir_all(&app_dir)
+            .map_err(|e| format!("Falha ao criar diretório ~/Documents/MecNotes: {}", e))?;
     }
 
-    Ok(docs_dir.join("notas.db"))
+    let target_db = app_dir.join("notas.db");
+    let legacy_db = docs_dir.join("notas.db");
+
+    // Migração automática transparente do banco legado na raiz de Documentos se aplicável
+    if !target_db.exists() && legacy_db.exists() {
+        let _ = fs::copy(&legacy_db, &target_db);
+    }
+
+    Ok(target_db)
 }
 
 /// Inicializa o banco de dados e cria tabelas se não existirem
@@ -225,6 +234,14 @@ pub fn db_delete_note(conn: &Connection, id: &str) -> Result<bool, String> {
         .map_err(|e| format!("Erro ao excluir nota: {}", e))?;
 
     Ok(rows_affected > 0)
+}
+
+pub fn db_clear_all_notes(conn: &Connection) -> Result<usize, String> {
+    let rows_affected = conn
+        .execute("DELETE FROM notes", [])
+        .map_err(|e| format!("Erro ao limpar todas as notas: {}", e))?;
+
+    Ok(rows_affected)
 }
 
 /// Funções de Configurações

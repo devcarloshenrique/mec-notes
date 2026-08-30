@@ -3,9 +3,9 @@ mod tests {
     use std::fs;
     use tauri_plugin_global_shortcut::Shortcut;
     use crate::db::{
-        db_delete_note, db_export_to, db_get_note_by_id, db_get_notes, db_get_settings,
-        db_import_from, db_save_note, db_update_setting, get_default_db_path, init_db, DbState,
-        Note,
+        db_clear_all_notes, db_delete_note, db_export_to, db_get_note_by_id, db_get_notes,
+        db_get_settings, db_import_from, db_save_note, db_update_setting, get_default_db_path,
+        init_db, DbState, Note,
     };
 
     #[test]
@@ -15,11 +15,11 @@ mod tests {
     }
 
     #[test]
-    fn test_default_db_path_points_to_documents() {
+    fn test_default_db_path_points_to_mecnotes_folder() {
         let path = get_default_db_path().expect("Deveria obter caminho de documentos");
-        assert!(path.ends_with("notas.db"));
+        assert!(path.ends_with("MecNotes\\notas.db") || path.ends_with("MecNotes/notas.db"));
         let docs = dirs::document_dir().expect("Deveria ter diretório de documentos");
-        assert_eq!(path.parent().unwrap(), docs.as_path());
+        assert_eq!(path.parent().unwrap(), docs.join("MecNotes").as_path());
     }
 
     #[test]
@@ -85,6 +85,13 @@ mod tests {
         let notes_after_delete = db_get_notes(&conn).expect("Deveria listar notas");
         assert_eq!(notes_after_delete.len(), 1);
         assert_eq!(notes_after_delete[0].id, "note-1");
+
+        // 7. Limpar todas as notas
+        let cleared_count = db_clear_all_notes(&conn).expect("Deveria limpar todas as notas");
+        assert_eq!(cleared_count, 1);
+
+        let notes_after_clear = db_get_notes(&conn).expect("Deveria listar notas");
+        assert_eq!(notes_after_clear.len(), 0);
 
         // Limpeza
         let _ = fs::remove_dir_all(&temp_dir);

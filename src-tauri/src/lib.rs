@@ -8,8 +8,9 @@ pub mod commands {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
     use crate::db::{
-        db_delete_note, db_export_to, db_get_note_by_id, db_get_notes, db_get_settings,
-        db_import_from, db_save_note, db_update_setting, AppSettings, DbState, Note,
+        db_clear_all_notes, db_delete_note, db_export_to, db_get_note_by_id, db_get_notes,
+        db_get_settings, db_import_from, db_save_note, db_update_setting, AppSettings, DbState,
+        Note,
     };
 
     // ==========================================
@@ -162,6 +163,15 @@ pub mod commands {
         db_delete_note(&conn, &id)
     }
 
+    #[tauri::command]
+    pub fn clear_all_notes(state: State<'_, DbState>) -> Result<usize, String> {
+        let conn = state
+            .conn
+            .lock()
+            .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+        db_clear_all_notes(&conn)
+    }
+
     // ==========================================
     // Comandos SQLite de Configurações
     // ==========================================
@@ -197,6 +207,69 @@ pub mod commands {
     // ==========================================
     // Comandos de Exportação e Importação de Banco
     // ==========================================
+
+    #[tauri::command]
+    pub fn export_db(
+        state: State<'_, DbState>,
+        destination_path: Option<String>,
+    ) -> Result<Option<String>, String> {
+        let dest = if let Some(path_str) = destination_path {
+            PathBuf::from(path_str)
+        } else {
+            // Abrir diálogo nativo do sistema para salvar arquivo
+            let default_dir = dirs::document_dir().unwrap_or_else(|| PathBuf::from("."));
+            let file = rfd::FileDialog::new()
+                .set_title("Exportar Banco de Dados SQLite")
+                .set_directory(&default_dir)
+                .set_file_name("notas_backup.db")
+                .add_filter("SQLite Database (*.db, *.sqlite)", &["db", "sqlite"])
+                .save_file();
+
+            match file {
+                Some(p) => p,
+                None => return Ok(None), // Usuário cancelou o diálogo
+            }
+        };
+
+        db_export_to(&state.db_path, &dest)?;
+        Ok(Some(format!(
+            "Banco de dados exportado com sucesso para: {}",
+            dest.display()
+        )))
+    }
+
+    #[tauri::command]
+    pub fn import_db(
+        app: AppHandle,
+        state: State<'_, DbState>,
+        source_path: Option<String>,
+    ) -> Result<Option<AppSettings>, String> {
+        let src = if let Some(path_str) = source_path {
+            PathBuf::from(path_str)
+        } else {
+            // Abrir diálogo nativo do sistema para selecionar arquivo
+            let default_dir = dirs::document_dir().unwrap_or_else(|| PathBuf::from("."));
+            let file = rfd::FileDialog::new()
+                .set_title("Importar Banco de Dados SQLite")
+                .set_directory(&default_dir)
+                .add_filter("SQLite Database (*.db, *.sqlite)", &["db", "sqlite"])
+                .pick_file();
+
+            match file {
+                Some(p) => p,
+                None => return Ok(None), // Usuário cancelou o diálogo
+            }
+        };
+
+        let settings = db_import_from(&state, &src)?;
+
+        // Re-sincroniza o atalho global conforme as configurações importadas
+        if !settings.hotkey.is_empty() {
+            let _ = register_global_shortcut(app, settings.hotkey.clone());
+        }
+
+        Ok(Some(settings))
+    }
 
     #[tauri::command]
     pub fn export_notes_db(
@@ -293,7 +366,7 @@ pub fn setup_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 mod tests;
 
 pub fn run() {
-    let db_path = get_default_db_path().expect("Falha ao resolver caminho de ~/Documents/notas.db");
+    let db_path = get_default_db_path().expect("Falha ao resolver caminho de ~/Documents/MecNotes/notas.db");
     log::info!("Inicializando banco de dados SQLite em: {:?}", db_path);
 
     let conn = init_db(&db_path).expect("Falha ao inicializar banco de dados SQLite");
@@ -337,8 +410,11 @@ pub fn run() {
             commands::get_note_by_id,
             commands::save_note,
             commands::delete_note,
+            commands::clear_all_notes,
             commands::get_settings,
             commands::update_hotkey_setting,
+            commands::export_db,
+            commands::import_db,
             commands::export_notes_db,
             commands::import_notes_db,
             commands::get_db_path,
