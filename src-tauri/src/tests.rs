@@ -12,6 +12,12 @@ mod tests {
     fn test_shortcut_parsing() {
         let s = "Ctrl+Shift+Space".parse::<Shortcut>();
         assert!(s.is_ok());
+
+        let s2 = "Ctrl+Alt+N".parse::<Shortcut>();
+        assert!(s2.is_ok());
+
+        let s3 = "Alt+Space".parse::<Shortcut>();
+        assert!(s3.is_ok());
     }
 
     #[test]

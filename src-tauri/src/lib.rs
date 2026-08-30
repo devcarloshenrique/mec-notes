@@ -5,7 +5,7 @@ pub mod commands {
     use tauri::{
         AppHandle, LogicalSize, Manager, PhysicalPosition, Position, Size, State, WebviewWindow,
     };
-    use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
     use crate::db::{
         db_clear_all_notes, db_delete_note, db_export_to, db_get_note_by_id, db_get_notes,
@@ -103,22 +103,25 @@ pub mod commands {
 
     #[tauri::command]
     pub fn register_global_shortcut(app: AppHandle, shortcut_str: String) -> Result<(), String> {
-        let shortcut: Shortcut = shortcut_str
+        // Normaliza aliases comuns (ex: Control -> Ctrl, Super -> Win) para o parser do Shortcut
+        let normalized = shortcut_str
+            .replace("Control", "Ctrl")
+            .replace("Meta", "Super")
+            .replace("Win", "Super");
+
+        let shortcut: Shortcut = normalized
             .parse()
-            .map_err(|_| format!("Atalho inválido: {}", shortcut_str))?;
+            .map_err(|e| format!("Atalho inválido '{}': {}", shortcut_str, e))?;
 
         let global_shortcut_plugin = app.global_shortcut();
 
         // Desregistra todos os atalhos anteriores gerenciados
         let _ = global_shortcut_plugin.unregister_all();
 
+        // Registra o novo atalho - o handler global configurado no builder responderá ao evento
         global_shortcut_plugin
-            .on_shortcut(shortcut, move |app_handle, _shortcut, event| {
-                if event.state() == ShortcutState::Pressed {
-                    let _ = toggle_window_visibility(app_handle.clone());
-                }
-            })
-            .map_err(|e| format!("Falha ao registrar atalho global: {}", e))?;
+            .register(shortcut)
+            .map_err(|e| format!("Falha ao registrar atalho global '{}': {}", shortcut_str, e))?;
 
         Ok(())
     }
@@ -379,15 +382,11 @@ pub fn run() {
         .manage(db_state)
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
-                .with_shortcut("Ctrl+Shift+Space")
-                .map(|b| {
-                    b.with_handler(|app, _shortcut, event| {
-                        if event.state() == ShortcutState::Pressed {
-                            let _ = commands::toggle_window_visibility(app.clone());
-                        }
-                    })
+                .with_handler(|app, _shortcut, event| {
+                    if event.state() == ShortcutState::Pressed {
+                        let _ = commands::toggle_window_visibility(app.clone());
+                    }
                 })
-                .unwrap_or_else(|_| tauri_plugin_global_shortcut::Builder::new())
                 .build(),
         )
         .setup(|app| {
@@ -396,6 +395,16 @@ pub fn run() {
             // Iniciar com posição do modo flutuante
             if let Some(window) = app.get_webview_window("main") {
                 let _ = commands::set_floating_mode(window);
+            }
+
+            // Carrega e registra o atalho global persistido no SQLite
+            let state = app.state::<DbState>();
+            if let Ok(conn) = state.conn.lock() {
+                if let Ok(settings) = crate::db::db_get_settings(&conn) {
+                    if !settings.hotkey.is_empty() {
+                        let _ = commands::register_global_shortcut(app.handle().clone(), settings.hotkey);
+                    }
+                }
             }
 
             Ok(())
