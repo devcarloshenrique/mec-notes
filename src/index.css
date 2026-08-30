@@ -3,36 +3,37 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  :root,
+  .dark {
     color-scheme: dark;
-    --background: #15181f;
-    --foreground: #e7e9ee;
-    --card: #1c1f27;
-    --card-foreground: #e7e9ee;
-    --popover: #1c1f27;
-    --popover-foreground: #e7e9ee;
-    --primary: #e0a94a;
-    --primary-foreground: #2a2113;
-    --secondary: #23272f;
-    --secondary-foreground: #e7e9ee;
-    --muted: #23272f;
-    --muted-foreground: #9a9ea8;
-    --accent: #282d37;
-    --accent-foreground: #e7e9ee;
-    --destructive: #d5453b;
+    --background: #0f0f10;
+    --foreground: #e5e5e5;
+    --card: #141415;
+    --card-foreground: #e5e5e5;
+    --popover: #141415;
+    --popover-foreground: #e5e5e5;
+    --primary: #ffffff;
+    --primary-foreground: #0a0a0b;
+    --secondary: #18181a;
+    --secondary-foreground: #e5e5e5;
+    --muted: #18181a;
+    --muted-foreground: #71717a;
+    --accent: #1a1a1c;
+    --accent-foreground: #e5e5e5;
+    --destructive: #dc2626;
     --destructive-foreground: #ffffff;
-    --border: rgba(255, 255, 255, 0.09);
-    --input: rgba(255, 255, 255, 0.12);
-    --ring: #e0a94a;
+    --border: rgba(255, 255, 255, 0.06);
+    --input: rgba(255, 255, 255, 0.08);
+    --ring: #ffffff;
     --radius: 0.625rem;
-    --sidebar: #111318;
-    --sidebar-foreground: #dcdee4;
-    --sidebar-primary: #e0a94a;
-    --sidebar-primary-foreground: #2a2113;
-    --sidebar-accent: #23272f;
-    --sidebar-accent-foreground: #e7e9ee;
-    --sidebar-border: rgba(255, 255, 255, 0.08);
-    --sidebar-ring: #e0a94a;
+    --sidebar: #0a0a0b;
+    --sidebar-foreground: #a1a1aa;
+    --sidebar-primary: #ffffff;
+    --sidebar-primary-foreground: #0a0a0b;
+    --sidebar-accent: #18181a;
+    --sidebar-accent-foreground: #e5e5e5;
+    --sidebar-border: rgba(255, 255, 255, 0.06);
+    --sidebar-ring: #ffffff;
   }
 }
 
@@ -41,8 +42,8 @@ html, body, #root {
   width: 100%;
   margin: 0;
   padding: 0;
-  background-color: #15181f;
-  color: #e7e9ee;
+  background-color: #0f0f10;
+  color: #e5e5e5;
   font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   user-select: none;
   overflow: hidden;
@@ -59,10 +60,10 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.14);
 }
