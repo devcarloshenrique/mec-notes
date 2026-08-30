@@ -46,9 +46,9 @@ export const WindowTitlebar: React.FC<Props> = ({
       {/* Lado Esquerdo: Apenas a Logo */}
       <div className="flex items-center pointer-events-none">
         <img
-          src="/logo_20.png"
+          src="/logo_native.png"
           alt="MEC Notes Logo"
-          className="size-5 rounded-[4px] object-contain select-none"
+          className="h-[18px] w-auto select-none"
           draggable={false}
         />
       </div>
