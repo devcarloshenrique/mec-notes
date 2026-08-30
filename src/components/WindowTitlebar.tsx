@@ -8,7 +8,6 @@ type Props = {
   onMinimize: () => void;
   onToggleSidebar?: () => void;
   isSidebarOpen?: boolean;
-  saveState: "saved" | "saving" | "unsaved";
 };
 
 export const WindowTitlebar: React.FC<Props> = ({
@@ -18,39 +17,19 @@ export const WindowTitlebar: React.FC<Props> = ({
   onMinimize,
   onToggleSidebar,
   isSidebarOpen = true,
-  saveState,
 }) => {
   return (
     <header
       data-tauri-drag-region
       className="flex h-10 shrink-0 select-none items-center justify-between border-b border-border bg-card/60 pl-3 pr-2 backdrop-blur cursor-move"
     >
-      {/* Lado Esquerdo: Logo, Título e Status de Auto-save */}
+      {/* Lado Esquerdo: Logo e Título */}
       <div className="flex items-center gap-2 pointer-events-none">
         <span className="grid size-5 place-items-center rounded-[5px] bg-primary text-[11px] font-bold text-primary-foreground select-none">
           M
         </span>
         <span className="text-[13px] font-semibold tracking-tight text-foreground">
           MEC Notes
-        </span>
-        <span className="ml-1 hidden items-center gap-1.5 rounded-full border border-border px-2 py-0.5 sm:flex">
-          <span
-            className={`size-1.5 rounded-full ${
-              saveState === "saving"
-                ? "bg-white/60 animate-pulse"
-                : saveState === "unsaved"
-                ? "bg-white/40 animate-pulse"
-                : "bg-emerald-400"
-            }`}
-            aria-hidden
-          />
-          <span className="text-[10px] text-muted-foreground">
-            {saveState === "saving"
-              ? "Salvando…"
-              : saveState === "unsaved"
-              ? "Alterações pendentes"
-              : "Salvo automaticamente"}
-          </span>
         </span>
       </div>
 
