@@ -34,12 +34,24 @@ export const dbService = {
     return await invoke<boolean>("delete_note", { id });
   },
 
+  async clearAllNotes(): Promise<number> {
+    return await invoke<number>("clear_all_notes");
+  },
+
   async getSettings(): Promise<AppSettings> {
     return await invoke<AppSettings>("get_settings");
   },
 
   async updateHotkeySetting(hotkey: string): Promise<void> {
     return await invoke<void>("update_hotkey_setting", { hotkey });
+  },
+
+  async exportDb(destinationPath?: string): Promise<string | null> {
+    return await invoke<string | null>("export_db", { destinationPath });
+  },
+
+  async importDb(sourcePath?: string): Promise<AppSettings | null> {
+    return await invoke<AppSettings | null>("import_db", { sourcePath });
   },
 
   async exportNotesDb(destinationPath: string): Promise<string> {

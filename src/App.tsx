@@ -6,9 +6,11 @@ import {
   Maximize2,
   Minus,
   Layers,
+  Settings,
 } from "lucide-react";
 import { Sidebar } from "./components/Sidebar";
 import { Editor } from "./components/Editor";
+import { SettingsModal } from "./components/SettingsModal";
 import { dbService, Note, AppSettings } from "./services/db";
 
 export default function App() {
@@ -16,6 +18,7 @@ export default function App() {
   const [activeNote, setActiveNote] = useState<Note | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isFloating, setIsFloating] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -220,6 +223,14 @@ Aproveite sua produtividade!`,
           </button>
 
           <button
+            onClick={() => setIsSettingsOpen(true)}
+            className="p-1 text-slate-400 hover:text-indigo-400 hover:bg-slate-800/80 rounded transition"
+            title="Configurações"
+          >
+            <Settings className="w-3.5 h-3.5" />
+          </button>
+
+          <button
             onClick={handleToggleMode}
             className="p-1 text-slate-400 hover:text-indigo-400 hover:bg-slate-800/80 rounded transition"
             title={isFloating ? "Modo Janela Completa" : "Modo Flutuante Compacto"}
@@ -266,6 +277,13 @@ Aproveite sua produtividade!`,
           />
         )}
       </div>
+
+      {/* Modal de Configurações */}
+      <SettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onDataChanged={loadInitialData}
+      />
     </div>
   );
 }
