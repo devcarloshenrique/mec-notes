@@ -45,9 +45,12 @@ export const WindowTitlebar: React.FC<Props> = ({
     >
       {/* Lado Esquerdo: Logo e Título */}
       <div className="flex items-center gap-2 pointer-events-none">
-        <span className="grid size-5 place-items-center rounded-[5px] bg-primary text-[11px] font-bold text-primary-foreground select-none">
-          M
-        </span>
+        <img
+          src="/logo_20.png"
+          alt="MEC Notes Logo"
+          className="size-5 rounded-[4px] object-contain select-none"
+          draggable={false}
+        />
         <span className="text-[13px] font-semibold tracking-tight text-foreground">
           MEC Notes
         </span>
