@@ -148,8 +148,8 @@ export const NotesSidebar: React.FC<Props> = ({
                         <span
                           role="button"
                           tabIndex={0}
-                          aria-label="Desafixar nota"
-                          title="Fixada no topo"
+                          aria-label="Desafixar nota do topo"
+                          title="Desafixar do topo"
                           onClick={(e) => handlePinClick(e, note)}
                         >
                           <Pin className="size-3 shrink-0 fill-primary text-primary cursor-pointer hover:opacity-80" />
@@ -158,16 +158,30 @@ export const NotesSidebar: React.FC<Props> = ({
                       <span className="flex-1 truncate text-[13px] font-medium text-foreground">
                         {note.title.trim() || "Sem título"}
                       </span>
-                      <span
-                        role="button"
-                        tabIndex={0}
-                        aria-label="Excluir nota"
-                        title="Excluir nota"
-                        onClick={(e) => confirmDelete(e, note.id)}
-                        className="opacity-0 transition-opacity group-hover:opacity-100"
-                      >
-                        <Trash2 className="size-3.5 text-muted-foreground hover:text-destructive" />
-                      </span>
+                      <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        {onTogglePin && !note.is_pinned && (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            aria-label="Fixar nota no topo"
+                            title="Fixar no topo"
+                            onClick={(e) => handlePinClick(e, note)}
+                            className="text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                          >
+                            <Pin className="size-3" />
+                          </span>
+                        )}
+                        <span
+                          role="button"
+                          tabIndex={0}
+                          aria-label="Excluir nota"
+                          title="Excluir nota"
+                          onClick={(e) => confirmDelete(e, note.id)}
+                          className="text-muted-foreground hover:text-destructive cursor-pointer transition-colors"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </span>
+                      </div>
                     </div>
                     <span className="truncate text-[11px] text-muted-foreground w-full">
                       {preview || "Vazio"}

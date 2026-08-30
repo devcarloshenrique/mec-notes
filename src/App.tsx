@@ -13,7 +13,6 @@ export default function App() {
   const [mode, setMode] = useState<"floating" | "window">("floating");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
-  const [saveState, setSaveState] = useState<"saved" | "saving" | "unsaved">("saved");
   const [loading, setLoading] = useState(true);
 
   // Carregar notas e configurações do SQLite via Tauri IPC
@@ -190,7 +189,6 @@ Checklist inicial do projeto **mec-notes**.
       {/* Barra de Título Customizada (WindowTitlebar) */}
       <WindowTitlebar
         mode={mode}
-        saveState={saveState}
         onToggleMode={handleToggleMode}
         onOpenSettings={() => setSettingsOpen(true)}
         onMinimize={handleMinimize}
@@ -221,7 +219,7 @@ Checklist inicial do projeto **mec-notes**.
           <MarkdownEditor
             note={activeNote}
             onSaveNote={handleSaveNote}
-            onSaveStateChange={setSaveState}
+            onTogglePin={handleTogglePin}
             autoSaveInterval={settings?.auto_save_interval ?? 500}
           />
         )}

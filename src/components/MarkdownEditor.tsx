@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Eye, Pencil } from "lucide-react";
+import { Eye, Pencil, Pin } from "lucide-react";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { formatRelative } from "../lib/utils";
 import { Note } from "../services/db";
@@ -8,6 +8,7 @@ type Props = {
   note: Note | null;
   onSaveNote: (updatedNote: Note) => Promise<void> | void;
   onSaveStateChange?: (state: "saved" | "saving" | "unsaved") => void;
+  onTogglePin?: (note: Note) => void;
   autoSaveInterval?: number;
 };
 
@@ -15,6 +16,7 @@ export const MarkdownEditor: React.FC<Props> = ({
   note,
   onSaveNote,
   onSaveStateChange,
+  onTogglePin,
   autoSaveInterval = 500,
 }) => {
   const [tab, setTab] = useState<"edit" | "preview">("edit");
@@ -116,8 +118,26 @@ export const MarkdownEditor: React.FC<Props> = ({
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      {/* Barra de Título da Nota com Toggle de Modo */}
+      {/* Barra de Título da Nota com Toggle de Modo e Pin */}
       <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+        {onTogglePin && (
+          <button
+            onClick={() => onTogglePin(note)}
+            aria-label={note.is_pinned ? "Desafixar nota do topo" : "Fixar nota no topo"}
+            title={note.is_pinned ? "Desafixar nota do topo" : "Fixar nota no topo"}
+            className={`grid size-7 place-items-center rounded-md transition-colors ${
+              note.is_pinned
+                ? "bg-accent text-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-foreground"
+            }`}
+          >
+            <Pin
+              className={`size-3.5 ${
+                note.is_pinned ? "fill-primary text-primary" : ""
+              }`}
+            />
+          </button>
+        )}
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
