@@ -1,4 +1,5 @@
 import React from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Maximize2, Minimize2, Minus, PanelLeft, Settings, X } from "lucide-react";
 
 type Props = {
@@ -18,9 +19,28 @@ export const WindowTitlebar: React.FC<Props> = ({
   onToggleSidebar,
   isSidebarOpen = true,
 }) => {
+  const handleMouseDown = async (e: React.MouseEvent) => {
+    // Só aciona o arrasto no botão esquerdo e se o alvo não for um elemento clicável (botão/link)
+    if (e.button === 0) {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName !== "BUTTON" &&
+        !target.closest("button") &&
+        target.getAttribute("role") !== "button"
+      ) {
+        try {
+          await getCurrentWindow().startDragging();
+        } catch (err) {
+          console.error("Erro ao iniciar arrasto:", err);
+        }
+      }
+    }
+  };
+
   return (
     <header
       data-tauri-drag-region
+      onMouseDown={handleMouseDown}
       className="flex h-10 shrink-0 select-none items-center justify-between border-b border-border bg-card/60 pl-3 pr-2 backdrop-blur cursor-move"
     >
       {/* Lado Esquerdo: Logo e Título */}
