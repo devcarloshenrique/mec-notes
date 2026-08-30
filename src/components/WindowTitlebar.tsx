@@ -43,17 +43,14 @@ export const WindowTitlebar: React.FC<Props> = ({
       onMouseDown={handleMouseDown}
       className="flex h-10 shrink-0 select-none items-center justify-between border-b border-border bg-card/60 pl-3 pr-2 backdrop-blur cursor-move"
     >
-      {/* Lado Esquerdo: Logo e Título */}
-      <div className="flex items-center gap-2 pointer-events-none">
+      {/* Lado Esquerdo: Apenas a Logo */}
+      <div className="flex items-center pointer-events-none">
         <img
           src="/logo_20.png"
           alt="MEC Notes Logo"
           className="size-5 rounded-[4px] object-contain select-none"
           draggable={false}
         />
-        <span className="text-[13px] font-semibold tracking-tight text-foreground">
-          MEC Notes
-        </span>
       </div>
 
       {/* Lado Direito: Ações e Controles */}
