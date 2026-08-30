@@ -1,28 +1,22 @@
 import { useState, useEffect, useCallback } from "react";
-import {
-  PanelLeftClose,
-  PanelLeft,
-  Minimize2,
-  Maximize2,
-  Minus,
-  Layers,
-  Settings,
-} from "lucide-react";
-import { Sidebar } from "./components/Sidebar";
-import { Editor } from "./components/Editor";
-import { SettingsModal } from "./components/SettingsModal";
+import { WindowTitlebar } from "./components/WindowTitlebar";
+import { NotesSidebar } from "./components/NotesSidebar";
+import { MarkdownEditor } from "./components/MarkdownEditor";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { dbService, Note, AppSettings } from "./services/db";
 
 export default function App() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeNote, setActiveNote] = useState<Note | null>(null);
+  const [query, setQuery] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isFloating, setIsFloating] = useState(false);
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [mode, setMode] = useState<"floating" | "window">("floating");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [saveState, setSaveState] = useState<"saved" | "saving" | "unsaved">("saved");
   const [loading, setLoading] = useState(true);
 
-  // Carregar notas e configurações iniciais
+  // Carregar notas e configurações do SQLite via Tauri IPC
   const loadInitialData = useCallback(async () => {
     try {
       setLoading(true);
@@ -39,39 +33,37 @@ export default function App() {
       setNotes(fetchedNotes);
       setSettings(fetchedSettings);
 
-      // Se houver notas, seleciona a primeira nota (fixada ou mais recente)
       if (fetchedNotes.length > 0) {
         setActiveNote(fetchedNotes[0]);
       } else {
-        // Cria uma nota de boas-vindas padrão se estiver vazio
-        const initialNote: Note = {
+        // Criar nota inicial de boas-vindas com markdown completo compatível com o mock
+        const welcomeNote: Note = {
           id: crypto.randomUUID(),
-          title: "Bem-vindo ao Mec Notes 🚀",
-          content: `# Bem-vindo ao Mec Notes!
+          title: "Setup do Tauri",
+          content: `# Setup do Tauri
 
-Um bloco de notas ultra rápido para Windows com persistência SQLite local.
+Checklist inicial do projeto **mec-notes**.
 
-### Principais Recursos:
-- **Modo Flutuante e Janela**: Alterne rapidamente com o botão no cabeçalho.
-- **Atalho Global**: Pressione \`Ctrl+Shift+Space\` para abrir/ocultar instantaneamente.
-- **Markdown Completo**: Escreva com listas, títulos, código e pré-visualização.
-- **Auto-save com Debounce**: Suas notas são salvas automaticamente enquanto você digita.
-- **Tags e Fixação**: Organize notas com #tags e fixe notas importantes no topo.
+- [x] \`tauri-plugin-global-shortcut\`
+- [x] System Tray nativo
+- [ ] Persistir hotkey no SQLite
+- [ ] Modo janela com \`set_decorations(true)\`
 
-Aproveite sua produtividade!`,
-          tags: ["guia", "inicio"],
+> O banco \`notas.db\` fica em ~/Documents/MecNotes.
+`,
+          tags: ["setup", "inicio"],
           is_pinned: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
 
         try {
-          const saved = await dbService.saveNote(initialNote);
+          const saved = await dbService.saveNote(welcomeNote);
           setNotes([saved]);
           setActiveNote(saved);
         } catch {
-          setNotes([initialNote]);
-          setActiveNote(initialNote);
+          setNotes([welcomeNote]);
+          setActiveNote(welcomeNote);
         }
       }
     } catch (err) {
@@ -85,18 +77,19 @@ Aproveite sua produtividade!`,
     loadInitialData();
   }, [loadInitialData]);
 
-  // Alternância de Modo Janela / Flutuante
+  // Alternância entre Modo Flutuante e Modo Janela
   const handleToggleMode = async () => {
     try {
-      if (isFloating) {
+      if (mode === "floating") {
         await dbService.setWindowMode();
-        setIsFloating(false);
+        setMode("window");
       } else {
         await dbService.setFloatingMode();
-        setIsFloating(true);
+        setMode("floating");
       }
     } catch (err) {
-      console.error("Erro ao alternar modo de janela:", err);
+      console.error("Erro ao alternar modo:", err);
+      setMode((m) => (m === "floating" ? "window" : "floating"));
     }
   };
 
@@ -112,7 +105,7 @@ Aproveite sua produtividade!`,
   const handleCreateNote = async () => {
     const newNote: Note = {
       id: crypto.randomUUID(),
-      title: "Nova Nota",
+      title: "Nova nota",
       content: "",
       tags: [],
       is_pinned: false,
@@ -137,7 +130,6 @@ Aproveite sua produtividade!`,
       const saved = await dbService.saveNote(updatedNote);
       setNotes((prev) => {
         const next = prev.map((n) => (n.id === saved.id ? saved : n));
-        // Reordenar se fixado mudou ou ordenado por updated_at
         return next.sort((a, b) => {
           if (a.is_pinned !== b.is_pinned) {
             return a.is_pinned ? -1 : 1;
@@ -166,21 +158,23 @@ Aproveite sua produtividade!`,
     }
   };
 
-  // Fixar / Desafixar nota
+  // Fixar / desafixar nota
   const handleTogglePin = async (note: Note) => {
-    const updated = { ...note, is_pinned: !note.is_pinned };
+    const updated = {
+      ...note,
+      is_pinned: !note.is_pinned,
+      updated_at: new Date().toISOString(),
+    };
     await handleSaveNote(updated);
   };
 
-  // Atalhos de Teclado Globais do Editor
+  // Atalhos de teclado locais
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl+N para nova nota
       if (e.ctrlKey && e.key.toLowerCase() === "n") {
         e.preventDefault();
         handleCreateNote();
       }
-      // Ctrl+B para abrir/fechar sidebar
       if (e.ctrlKey && e.key.toLowerCase() === "b") {
         e.preventDefault();
         setIsSidebarOpen((prev) => !prev);
@@ -189,101 +183,56 @@ Aproveite sua produtividade!`,
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleCreateNote]);
+  }, []);
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-950 text-slate-100 select-none">
-      {/* Barra de Título Customizada da Aplicação */}
-      <header
-        data-tauri-drag-region
-        className="h-9 bg-slate-950 border-b border-slate-800/80 px-3 flex items-center justify-between text-xs shrink-0 select-none cursor-move"
-      >
-        <div className="flex items-center gap-2 pointer-events-none">
-          <Layers className="w-4 h-4 text-indigo-500" />
-          <span className="font-semibold text-slate-200 tracking-wide text-xs">
-            Mec Notes
-          </span>
-          <span className="text-[10px] text-slate-500 bg-slate-900 border border-slate-800 px-1.5 py-0.2 rounded">
-            v0.1.0
-          </span>
-        </div>
-
-        {/* Controles do Cabeçalho */}
-        <div className="flex items-center gap-1 cursor-default">
-          <button
-            onClick={() => setIsSidebarOpen((prev) => !prev)}
-            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 rounded transition"
-            title={isSidebarOpen ? "Recolher barra lateral (Ctrl+B)" : "Expandir barra lateral (Ctrl+B)"}
-          >
-            {isSidebarOpen ? (
-              <PanelLeftClose className="w-3.5 h-3.5" />
-            ) : (
-              <PanelLeft className="w-3.5 h-3.5" />
-            )}
-          </button>
-
-          <button
-            onClick={() => setIsSettingsOpen(true)}
-            className="p-1 text-slate-400 hover:text-indigo-400 hover:bg-slate-800/80 rounded transition"
-            title="Configurações"
-          >
-            <Settings className="w-3.5 h-3.5" />
-          </button>
-
-          <button
-            onClick={handleToggleMode}
-            className="p-1 text-slate-400 hover:text-indigo-400 hover:bg-slate-800/80 rounded transition"
-            title={isFloating ? "Modo Janela Completa" : "Modo Flutuante Compacto"}
-          >
-            {isFloating ? (
-              <Maximize2 className="w-3.5 h-3.5" />
-            ) : (
-              <Minimize2 className="w-3.5 h-3.5" />
-            )}
-          </button>
-
-          <button
-            onClick={handleMinimize}
-            className="p-1 text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 rounded transition"
-            title="Minimizar para bandeja"
-          >
-            <Minus className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </header>
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-card text-foreground select-none">
+      {/* Barra de Título Customizada (WindowTitlebar) */}
+      <WindowTitlebar
+        mode={mode}
+        saveState={saveState}
+        onToggleMode={handleToggleMode}
+        onOpenSettings={() => setSettingsOpen(true)}
+        onMinimize={handleMinimize}
+        onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+        isSidebarOpen={isSidebarOpen}
+      />
 
       {/* Conteúdo Principal (Sidebar + Editor) */}
-      <div className="flex-1 flex overflow-hidden">
-        <Sidebar
-          notes={notes}
-          activeNoteId={activeNote?.id || null}
-          onSelectNote={(note) => setActiveNote(note)}
-          onCreateNote={handleCreateNote}
-          onDeleteNote={handleDeleteNote}
-          onTogglePin={handleTogglePin}
-          isOpen={isSidebarOpen}
-          onClose={() => setIsSidebarOpen(false)}
-        />
+      <div className="relative flex flex-1 overflow-hidden">
+        {isSidebarOpen && (
+          <NotesSidebar
+            notes={notes}
+            activeId={activeNote?.id || null}
+            query={query}
+            onQueryChange={setQuery}
+            onSelect={(note) => setActiveNote(note)}
+            onCreate={handleCreateNote}
+            onDelete={handleDeleteNote}
+            onTogglePin={handleTogglePin}
+          />
+        )}
 
         {loading ? (
-          <div className="flex-1 flex items-center justify-center text-slate-500 text-xs">
+          <div className="grid flex-1 place-items-center text-xs text-muted-foreground">
             Carregando notas...
           </div>
         ) : (
-          <Editor
+          <MarkdownEditor
             note={activeNote}
             onSaveNote={handleSaveNote}
+            onSaveStateChange={setSaveState}
             autoSaveInterval={settings?.auto_save_interval ?? 500}
           />
         )}
-      </div>
 
-      {/* Modal de Configurações */}
-      <SettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        onDataChanged={loadInitialData}
-      />
+        {/* Modal de Configurações (SettingsPanel) */}
+        <SettingsPanel
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          onDataChanged={loadInitialData}
+        />
+      </div>
     </div>
   );
 }
