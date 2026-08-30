@@ -24,7 +24,7 @@ function renderInline(text: string, keyPrefix: string) {
       nodes.push(
         <code
           key={`${keyPrefix}-c${i}`}
-          className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em] text-primary font-medium"
+          className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em] text-primary"
         >
           {match[3]}
         </code>
@@ -63,15 +63,15 @@ export function MarkdownPreview({ source }: { source: string }) {
           >
             {it.checked === null ? (
               <span
-                className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/70"
+                className="mt-2 size-1.5 shrink-0 rounded-full bg-primary/60"
                 aria-hidden
               />
             ) : (
               <span
-                className={`mt-0.5 grid size-4 shrink-0 place-items-center rounded-[4px] border select-none ${
+                className={`mt-0.5 grid size-4 shrink-0 place-items-center rounded-[4px] border ${
                   it.checked
-                    ? "border-primary bg-primary text-primary-foreground font-bold text-[10px]"
-                    : "border-border bg-background/50 text-transparent"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border"
                 }`}
                 aria-hidden
               >
@@ -95,7 +95,7 @@ export function MarkdownPreview({ source }: { source: string }) {
         blocks.push(
           <pre
             key={`code-${index}`}
-            className="my-3 overflow-x-auto rounded-lg border border-border bg-[#13151b] p-3 font-mono text-[12.5px] leading-relaxed text-foreground/90"
+            className="my-3 overflow-x-auto rounded-lg border border-border bg-[#0a0a0b] p-3 font-mono text-[12.5px] leading-relaxed text-foreground/90"
           >
             <code>{codeBuffer.join("\n")}</code>
           </pre>
@@ -158,7 +158,7 @@ export function MarkdownPreview({ source }: { source: string }) {
       blocks.push(
         <blockquote
           key={index}
-          className="my-2 border-l-2 border-primary/60 pl-3 text-[13px] italic text-muted-foreground bg-muted/20 py-1 rounded-r"
+          className="my-2 border-l-2 border-primary/50 pl-3 text-[13px] italic text-muted-foreground"
         >
           {renderInline(line.slice(2), `q-${index}`)}
         </blockquote>

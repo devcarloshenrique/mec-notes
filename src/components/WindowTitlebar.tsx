@@ -37,9 +37,9 @@ export const WindowTitlebar: React.FC<Props> = ({
           <span
             className={`size-1.5 rounded-full ${
               saveState === "saving"
-                ? "bg-primary animate-pulse"
+                ? "bg-white/60 animate-pulse"
                 : saveState === "unsaved"
-                ? "bg-amber-400 animate-pulse"
+                ? "bg-white/40 animate-pulse"
                 : "bg-emerald-400"
             }`}
             aria-hidden
@@ -107,7 +107,7 @@ export const WindowTitlebar: React.FC<Props> = ({
         <button
           onClick={onMinimize}
           aria-label="Ocultar para a bandeja"
-          className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-destructive hover:text-primary-foreground"
+          className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           title="Fechar para a bandeja"
         >
           <X className="size-3.5" />

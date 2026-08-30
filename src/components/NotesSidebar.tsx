@@ -64,7 +64,7 @@ export const NotesSidebar: React.FC<Props> = ({
   };
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar select-none h-full overflow-hidden">
+    <aside className="flex w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar h-full overflow-hidden">
       {/* Cabeçalho da Sidebar com Input e Botão Criar */}
       <div className="flex items-center gap-2 px-3 pb-2 pt-3">
         <div className="relative flex-1">
@@ -73,14 +73,13 @@ export const NotesSidebar: React.FC<Props> = ({
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             placeholder="Buscar notas"
-            className="w-full rounded-md border border-sidebar-border bg-background/40 py-1.5 pl-8 pr-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/60 transition-colors"
+            className="w-full rounded-md border border-sidebar-border bg-background/40 py-1.5 pl-8 pr-2 text-[13px] text-foreground outline-none placeholder:text-muted-foreground focus:border-primary/60"
           />
         </div>
         <button
           onClick={onCreate}
           aria-label="Nova nota"
-          title="Nova nota (Ctrl+N)"
-          className="grid size-[30px] shrink-0 place-items-center rounded-md bg-primary text-primary-foreground transition-opacity hover:opacity-90 shadow-sm"
+          className="grid size-[30px] shrink-0 place-items-center rounded-md bg-primary text-primary-foreground transition-opacity hover:opacity-90"
         >
           <Plus className="size-4" />
         </button>
@@ -140,11 +139,11 @@ export const NotesSidebar: React.FC<Props> = ({
                     onClick={() => onSelect(note)}
                     className={`group flex w-full flex-col gap-0.5 rounded-md border px-2.5 py-2 text-left transition-colors ${
                       active
-                        ? "border-primary/40 bg-accent"
+                        ? "border-white/10 bg-accent"
                         : "border-transparent hover:border-sidebar-border hover:bg-accent/50"
                     }`}
                   >
-                    <div className="flex items-center gap-1.5 w-full">
+                    <div className="flex items-center gap-1.5">
                       {note.is_pinned && (
                         <span
                           role="button"
@@ -159,30 +158,16 @@ export const NotesSidebar: React.FC<Props> = ({
                       <span className="flex-1 truncate text-[13px] font-medium text-foreground">
                         {note.title.trim() || "Sem título"}
                       </span>
-                      <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        {onTogglePin && !note.is_pinned && (
-                          <span
-                            role="button"
-                            tabIndex={0}
-                            aria-label="Fixar nota"
-                            title="Fixar no topo"
-                            onClick={(e) => handlePinClick(e, note)}
-                            className="text-muted-foreground hover:text-primary transition"
-                          >
-                            <Pin className="size-3" />
-                          </span>
-                        )}
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          aria-label="Excluir nota"
-                          title="Excluir nota"
-                          onClick={(e) => confirmDelete(e, note.id)}
-                          className="text-muted-foreground hover:text-destructive transition"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </span>
-                      </div>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Excluir nota"
+                        title="Excluir nota"
+                        onClick={(e) => confirmDelete(e, note.id)}
+                        className="opacity-0 transition-opacity group-hover:opacity-100"
+                      >
+                        <Trash2 className="size-3.5 text-muted-foreground hover:text-destructive" />
+                      </span>
                     </div>
                     <span className="truncate text-[11px] text-muted-foreground w-full">
                       {preview || "Vazio"}

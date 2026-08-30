@@ -238,14 +238,14 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
   return (
     <div className="absolute inset-0 z-20 flex items-center justify-center p-4 select-none">
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-in fade-in duration-150"
+        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden
       />
       <div
         role="dialog"
         aria-label="Configurações"
-        className="relative w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl animate-in zoom-in-95 duration-150 flex flex-col max-h-[85vh]"
+        className="relative w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl flex flex-col max-h-[85vh]"
       >
         {/* Cabeçalho */}
         <div className="flex items-center justify-between border-b border-border px-4 py-3 shrink-0">
@@ -289,12 +289,12 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
             </div>
             <p className="mb-2.5 text-[12px] leading-relaxed text-muted-foreground">
               Invoca o MEC Notes instantaneamente de qualquer lugar do Windows. A nova tecla é enviada ao backend Rust,
-              que atualiza o <code className="font-mono text-primary font-medium">global-shortcut</code> e persiste a escolha.
+              que atualiza o <code className="font-mono text-primary">global-shortcut</code> e persiste a escolha.
             </p>
             <div className="flex items-center gap-2">
               <div
-                className={`flex flex-1 items-center gap-1.5 rounded-md border border-border bg-background/50 px-3 py-2 transition ${
-                  capturing ? "border-primary ring-1 ring-primary/40" : ""
+                className={`flex flex-1 items-center gap-1.5 rounded-md border border-border bg-background/40 px-3 py-2 transition ${
+                  capturing ? "border-primary/40 ring-1 ring-white/20" : ""
                 }`}
               >
                 {capturing ? (
@@ -309,7 +309,7 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
                   captured.map((k, i) => (
                     <kbd
                       key={i}
-                      className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground font-medium"
+                      className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground"
                     >
                       {k}
                     </kbd>
@@ -325,7 +325,7 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
                       setCapturing(false);
                     }}
                     disabled={isSavingHotkey}
-                    className="rounded-md border border-border bg-background/50 hover:bg-accent px-2.5 py-2 text-[12px] font-medium text-muted-foreground transition-colors"
+                    className="rounded-md border border-border bg-background/40 hover:bg-accent px-2.5 py-2 text-[12px] font-medium text-muted-foreground transition-colors"
                   >
                     Cancelar
                   </button>
@@ -362,16 +362,16 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
               <Database className="size-4 text-primary shrink-0" />
               <h3 className="text-[13px] font-medium text-foreground">Banco de dados</h3>
             </div>
-            <div className="rounded-md border border-border bg-background/50 px-3 py-2">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">
+            <div className="rounded-md border border-border bg-background/40 px-3 py-2">
+              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
                 Caminho do arquivo
               </span>
-              <p className="mt-0.5 truncate font-mono text-[12px] text-foreground select-all font-medium">
+              <p className="mt-0.5 truncate font-mono text-[12px] text-foreground">
                 {dbPath}
               </p>
             </div>
             <p className="mt-1.5 text-[11px] text-muted-foreground">
-              Resolvido automaticamente a partir de <code className="font-mono text-primary font-medium">~/Documents/MecNotes</code> pelo backend Rust.
+              Resolvido automaticamente a partir de <code className="font-mono text-primary">~/Documents/MecNotes</code> pelo backend Rust.
             </p>
           </section>
 
@@ -382,12 +382,12 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
               <button
                 onClick={handleExportDb}
                 disabled={isExporting || isImporting}
-                className="flex items-center justify-center gap-2 rounded-md border border-border bg-background/50 px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+                className="flex items-center justify-center gap-2 rounded-md border border-border bg-background/40 px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
               >
                 {isExporting ? (
-                  <Loader2 className="size-4 animate-spin text-primary" />
+                  <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  <Download className="size-4 text-primary" />
+                  <Download className="size-4" />
                 )}
                 <span>{isExporting ? "Aguardando..." : "Exportar tudo"}</span>
               </button>
@@ -395,18 +395,18 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
               <button
                 onClick={handleImportDb}
                 disabled={isExporting || isImporting}
-                className="flex items-center justify-center gap-2 rounded-md border border-border bg-background/50 px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+                className="flex items-center justify-center gap-2 rounded-md border border-border bg-background/40 px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
               >
                 {isImporting ? (
-                  <Loader2 className="size-4 animate-spin text-primary" />
+                  <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  <Upload className="size-4 text-primary" />
+                  <Upload className="size-4" />
                 )}
                 <span>{isImporting ? "Aguardando..." : "Importar"}</span>
               </button>
             </div>
             <p className="mt-1.5 text-[11px] text-muted-foreground">
-              Faz o dump ou a substituição do histórico completo de notas via comandos <code className="font-mono text-primary font-medium">invoke</code>.
+              Faz o dump ou a substituição do histórico completo de notas via comandos <code className="font-mono">invoke</code>.
             </p>
           </section>
 
@@ -427,7 +427,7 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
                   <button
                     onClick={() => setShowClearConfirm(false)}
                     disabled={isClearingNotes}
-                    className="rounded-md border border-border bg-background/50 hover:bg-accent px-2.5 py-1 text-xs font-medium text-foreground transition-colors"
+                    className="rounded-md border border-border bg-background/40 hover:bg-accent px-2.5 py-1 text-xs font-medium text-foreground transition-colors"
                   >
                     Cancelar
                   </button>
@@ -446,7 +446,7 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-between rounded-md border border-border bg-background/50 p-3">
+              <div                 className="flex items-center justify-between rounded-md border border-border bg-background/40 p-3">
                 <div>
                   <div className="text-xs font-medium text-foreground">
                     Limpar todas as notas

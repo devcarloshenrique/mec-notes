@@ -115,9 +115,9 @@ export const MarkdownEditor: React.FC<Props> = ({
   const words = content.trim() ? content.trim().split(/\s+/).length : 0;
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden bg-background">
+    <div className="flex flex-1 flex-col overflow-hidden">
       {/* Barra de Título da Nota com Toggle de Modo */}
-      <div className="flex items-center gap-2 border-b border-border px-4 py-2.5 shrink-0">
+      <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
@@ -125,7 +125,7 @@ export const MarkdownEditor: React.FC<Props> = ({
           placeholder="Título da nota"
           className="min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-foreground outline-none placeholder:text-muted-foreground"
         />
-        <div className="flex shrink-0 items-center rounded-md border border-border p-0.5 bg-background/50">
+        <div className="flex shrink-0 items-center rounded-md border border-border p-0.5">
           <button
             onClick={() => setTab("edit")}
             className={`flex items-center gap-1 rounded-[5px] px-2 py-1 text-[11px] font-medium transition-colors ${
@@ -170,7 +170,7 @@ export const MarkdownEditor: React.FC<Props> = ({
       </div>
 
       {/* Rodapé com Contador de Palavras e Data */}
-      <footer className="flex items-center justify-between border-t border-border px-4 py-1.5 text-[10.5px] text-muted-foreground select-none shrink-0 bg-background/60">
+      <footer className="flex items-center justify-between border-t border-border px-4 py-1.5 text-[10.5px] text-muted-foreground">
         <span>{words} palavras · Markdown</span>
         <span>Editado {formatRelative(note.updated_at)}</span>
       </footer>
