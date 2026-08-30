@@ -78,8 +78,8 @@ pub mod commands {
 
     #[tauri::command]
     pub fn set_window_mode(window: WebviewWindow) -> Result<(), String> {
-        // Configurações para modo janela: com decorações, centralizado e redimensionável
-        window.set_decorations(true).map_err(|e| e.to_string())?;
+        // Configurações para modo janela: sem decorações nativas (usa custom titlebar), centralizado e redimensionável
+        window.set_decorations(false).map_err(|e| e.to_string())?;
         window.set_always_on_top(false).map_err(|e| e.to_string())?;
         window.set_resizable(true).map_err(|e| e.to_string())?;
         window.set_skip_taskbar(false).map_err(|e| e.to_string())?;
