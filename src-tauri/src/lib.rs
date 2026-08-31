@@ -155,8 +155,7 @@ pub mod commands {
         let w = width.unwrap_or(280.0).max(180.0);
         let h = height.unwrap_or(280.0).max(150.0);
 
-        let url = format!("index.html?sticky={}", note_id);
-        let webview_url = WebviewUrl::App(url.into());
+        let webview_url = WebviewUrl::App("index.html".into());
 
         let builder = WebviewWindowBuilder::new(app, &label, webview_url)
             .title("Nota Adesiva")
@@ -219,27 +218,15 @@ pub mod commands {
             ),
         };
 
-        // Criação e manipulação da janela Tauri sem segurar lock do SQLite (prevenção de deadlocks com o thread de UI)
-        let window = create_or_show_sticky_window(&app, &note_id, use_x, use_y, use_w, use_h)?;
+        // Criação e exibição da janela Tauri sem segurar lock do SQLite
+        let _ = create_or_show_sticky_window(&app, &note_id, use_x, use_y, use_w, use_h)?;
 
-        // Obter posição/dimensão real da janela criada para persistência exata
-        let (final_x, final_y) = if let Ok(pos) = window.outer_position() {
-            let scale_factor = window.scale_factor().unwrap_or(1.0);
-            let logical_pos = pos.to_logical::<f64>(scale_factor);
-            (logical_pos.x, logical_pos.y)
-        } else {
-            (use_x.unwrap_or(100.0), use_y.unwrap_or(100.0))
-        };
+        let final_x = use_x.unwrap_or(100.0);
+        let final_y = use_y.unwrap_or(100.0);
+        let final_w = use_w.unwrap_or(280.0);
+        let final_h = use_h.unwrap_or(280.0);
 
-        let (final_w, final_h) = if let Ok(size) = window.inner_size() {
-            let scale_factor = window.scale_factor().unwrap_or(1.0);
-            let logical_size = size.to_logical::<f64>(scale_factor);
-            (logical_size.width, logical_size.height)
-        } else {
-            (use_w.unwrap_or(280.0), use_h.unwrap_or(280.0))
-        };
-
-        // Persistir a geometria com novo lock dedicado e isolado
+        // Persistir a geometria inicial/restaurada de forma rápida sem chamadas síncronas de inspeção de janela
         {
             let conn = state
                 .conn
