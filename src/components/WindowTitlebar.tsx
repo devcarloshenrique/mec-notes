@@ -20,11 +20,12 @@ export const WindowTitlebar: React.FC<Props> = ({
   isSidebarOpen = true,
 }) => {
   const handleMouseDown = async (e: React.MouseEvent) => {
-    // Só aciona o arrasto no botão esquerdo e se o alvo não for um elemento clicável (botão/link)
+    // Só aciona o arrasto no botão esquerdo e se o alvo não for um elemento clicável (botão/link/input)
     if (e.button === 0) {
       const target = e.target as HTMLElement;
       if (
         target.tagName !== "BUTTON" &&
+        target.tagName !== "INPUT" &&
         !target.closest("button") &&
         target.getAttribute("role") !== "button"
       ) {
@@ -34,6 +35,50 @@ export const WindowTitlebar: React.FC<Props> = ({
           console.error("Erro ao iniciar arrasto:", err);
         }
       }
+    }
+  };
+
+  const handleMinimizeSafe = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      if (onMinimize) {
+        await Promise.resolve(onMinimize());
+      }
+    } catch (err) {
+      console.error("Erro ao minimizar janela:", err);
+    }
+  };
+
+  const handleToggleModeSafe = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      if (onToggleMode) {
+        await Promise.resolve(onToggleMode());
+      }
+    } catch (err) {
+      console.error("Erro ao alternar modo da janela:", err);
+    }
+  };
+
+  const handleOpenSettingsSafe = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      if (onOpenSettings) {
+        onOpenSettings();
+      }
+    } catch (err) {
+      console.error("Erro ao abrir configurações:", err);
+    }
+  };
+
+  const handleToggleSidebarSafe = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      if (onToggleSidebar) {
+        onToggleSidebar();
+      }
+    } catch (err) {
+      console.error("Erro ao alternar barra lateral:", err);
     }
   };
 
@@ -57,7 +102,7 @@ export const WindowTitlebar: React.FC<Props> = ({
       <div className="flex items-center gap-0.5 cursor-default">
         {onToggleSidebar && (
           <button
-            onClick={onToggleSidebar}
+            onClick={handleToggleSidebarSafe}
             className={`grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground ${
               !isSidebarOpen ? "opacity-60" : ""
             }`}
@@ -68,7 +113,7 @@ export const WindowTitlebar: React.FC<Props> = ({
         )}
 
         <button
-          onClick={onToggleMode}
+          onClick={handleToggleModeSafe}
           className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           title={mode === "floating" ? "Alternar para Modo Janela" : "Alternar para Modo Flutuante"}
         >
@@ -83,7 +128,7 @@ export const WindowTitlebar: React.FC<Props> = ({
         </button>
 
         <button
-          onClick={onOpenSettings}
+          onClick={handleOpenSettingsSafe}
           aria-label="Configurações"
           className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           title="Configurações"
@@ -95,7 +140,7 @@ export const WindowTitlebar: React.FC<Props> = ({
 
         {/* Controles de Janela do SO */}
         <button
-          onClick={onMinimize}
+          onClick={handleMinimizeSafe}
           aria-label="Minimizar para a bandeja"
           className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           title="Minimizar para a bandeja"
@@ -104,7 +149,7 @@ export const WindowTitlebar: React.FC<Props> = ({
         </button>
 
         <button
-          onClick={onMinimize}
+          onClick={handleMinimizeSafe}
           aria-label="Ocultar para a bandeja"
           className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           title="Fechar para a bandeja"
