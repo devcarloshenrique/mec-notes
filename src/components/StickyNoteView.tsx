@@ -20,12 +20,20 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
   const geometryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isClosingRef = useRef<boolean>(false);
 
-  // Carregar dados da nota do SQLite de forma não bloqueante e com fallback imediato
+  // Carregar dados da nota do SQLite com fallback imediato e timeout de segurança
   useEffect(() => {
     let isMounted = true;
     const fetchNote = async () => {
       try {
-        const data = await dbService.getNoteById(noteId);
+        // Timeout de segurança de 3 segundos para evitar travamento infinito no IPC
+        const timeoutPromise = new Promise<null>((_, reject) =>
+          setTimeout(() => reject(new Error("Timeout ao carregar nota")), 3000)
+        );
+        const data = await Promise.race([
+          dbService.getNoteById(noteId),
+          timeoutPromise,
+        ]);
+
         if (isMounted) {
           if (data) {
             setNote(data);
@@ -58,6 +66,18 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
         }
       } catch (err) {
         console.error("Erro ao carregar nota adesiva:", err);
+        // Fallback local seguro para que a UI nunca fique travada ou preta
+        if (isMounted) {
+          setNote({
+            id: noteId,
+            title: "Nota Adesiva",
+            content: "",
+            tags: [],
+            is_pinned: false,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
       } finally {
         if (isMounted) {
           isInitialMountRef.current = true;
