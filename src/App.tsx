@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WindowTitlebar } from "./components/WindowTitlebar";
 import { NotesSidebar } from "./components/NotesSidebar";
@@ -7,74 +7,7 @@ import { SettingsPanel } from "./components/SettingsPanel";
 import { StickyNoteView } from "./components/StickyNoteView";
 import { dbService, Note, AppSettings } from "./services/db";
 
-export default function App() {
-  // Detectar rota de Sticky Note via URLSearchParams ou via Window Label do Tauri
-  const [stickyNoteId, setStickyNoteId] = useState<string | null>(() => {
-    try {
-      const params = new URLSearchParams(window.location.search);
-      const sticky = params.get("sticky");
-      const noteId = params.get("noteId");
-
-      if (sticky && sticky !== "true") {
-        return sticky;
-      }
-      if ((sticky === "true" || sticky === "1") && noteId) {
-        return noteId;
-      }
-      if (noteId) {
-        return noteId;
-      }
-    } catch {
-      // ignore
-    }
-    return null;
-  });
-
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const detectWindowRoute = async () => {
-      try {
-        const win = getCurrentWindow();
-        const label = win?.label;
-        if (label && label.startsWith("sticky-")) {
-          const extractedId = label.replace("sticky-", "");
-          if (extractedId && isMounted) {
-            setStickyNoteId(extractedId);
-          }
-        }
-      } catch (err) {
-        console.error("Erro ao obter label da janela:", err);
-      } finally {
-        if (isMounted) {
-          setIsReady(true);
-        }
-      }
-    };
-
-    detectWindowRoute();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  // Se a rota for uma nota adesiva individual, renderizar diretamente o StickyNoteView
-  if (stickyNoteId) {
-    return <StickyNoteView noteId={stickyNoteId} />;
-  }
-
-  // Enquanto verifica o label da janela inicial
-  if (!isReady) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-card text-xs text-muted-foreground select-none">
-        Inicializando...
-      </div>
-    );
-  }
-
+function MainApp() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeNote, setActiveNote] = useState<Note | null>(null);
   const [query, setQuery] = useState("");
@@ -314,3 +247,43 @@ Checklist inicial do projeto **mec-notes**.
     </div>
   );
 }
+
+export default function App() {
+  // Detectar se a janela atual é uma Sticky Note (síncrona via label da WebviewWindow ou URL)
+  const stickyNoteId = useMemo(() => {
+    try {
+      // 1. Tentar detectar pela label nativa do Tauri (ex: "sticky-1234")
+      const win = getCurrentWindow();
+      const label = win?.label;
+      if (label && label.startsWith("sticky-")) {
+        const id = label.replace("sticky-", "");
+        if (id) return id;
+      }
+
+      // 2. Fallback via URLSearchParams (?sticky=<id> ou ?sticky=true&noteId=<id>)
+      const params = new URLSearchParams(window.location.search);
+      const sticky = params.get("sticky");
+      const noteId = params.get("noteId");
+
+      if (sticky && sticky !== "true") {
+        return sticky;
+      }
+      if ((sticky === "true" || sticky === "1") && noteId) {
+        return noteId;
+      }
+      if (noteId) {
+        return noteId;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }, []);
+
+  if (stickyNoteId) {
+    return <StickyNoteView noteId={stickyNoteId} />;
+  }
+
+  return <MainApp />;
+}
+
