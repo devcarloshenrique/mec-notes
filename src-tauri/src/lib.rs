@@ -166,6 +166,7 @@ pub mod commands {
             .skip_taskbar(true)
             .always_on_top(false)
             .transparent(false)
+            .background_color(tauri::window::Color(15, 15, 16, 255))
             .resizable(true)
             .shadow(true);
 
@@ -199,12 +200,15 @@ pub mod commands {
         width: Option<f64>,
         height: Option<f64>,
     ) -> Result<StickyWindow, String> {
-        let conn = state
-            .conn
-            .lock()
-            .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+        // Obter configuração prévia do banco liberando o lock imediatamente antes de criar a janela Tauri
+        let saved = {
+            let conn = state
+                .conn
+                .lock()
+                .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+            db_get_sticky_window(&conn, &note_id)?
+        };
 
-        let saved = db_get_sticky_window(&conn, &note_id)?;
         let (use_x, use_y, use_w, use_h) = match (saved.as_ref(), x, y, width, height) {
             (Some(s), None, None, None, None) => (Some(s.x), Some(s.y), Some(s.width), Some(s.height)),
             _ => (
@@ -215,6 +219,7 @@ pub mod commands {
             ),
         };
 
+        // Criação e manipulação da janela Tauri sem segurar lock do SQLite (prevenção de deadlocks com o thread de UI)
         let window = create_or_show_sticky_window(&app, &note_id, use_x, use_y, use_w, use_h)?;
 
         // Obter posição/dimensão real da janela criada para persistência exata
@@ -234,7 +239,14 @@ pub mod commands {
             (use_w.unwrap_or(280.0), use_h.unwrap_or(280.0))
         };
 
-        db_save_sticky_geometry(&conn, &note_id, final_x, final_y, final_w, final_h)?;
+        // Persistir a geometria com novo lock dedicado e isolado
+        {
+            let conn = state
+                .conn
+                .lock()
+                .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+            db_save_sticky_geometry(&conn, &note_id, final_x, final_y, final_w, final_h)?;
+        }
 
         Ok(StickyWindow {
             note_id,
@@ -591,26 +603,32 @@ pub fn run() {
 
             // Carrega e registra o atalho global persistido no SQLite e restaura Sticky Windows abertas
             let state = app.state::<DbState>();
-            if let Ok(conn) = state.conn.lock() {
-                if let Ok(settings) = crate::db::db_get_settings(&conn) {
-                    if !settings.hotkey.is_empty() {
-                        let _ = commands::register_global_shortcut(app.handle().clone(), settings.hotkey);
-                    }
+            let (hotkey, open_windows) = {
+                if let Ok(conn) = state.conn.lock() {
+                    let hotkey = crate::db::db_get_settings(&conn)
+                        .map(|s| s.hotkey)
+                        .unwrap_or_default();
+                    let windows = crate::db::db_get_open_sticky_windows(&conn).unwrap_or_default();
+                    (hotkey, windows)
+                } else {
+                    (String::new(), Vec::new())
                 }
+            };
 
-                // Restauração de janelas de Notas Adesivas abertas (is_open = 1)
-                if let Ok(open_windows) = crate::db::db_get_open_sticky_windows(&conn) {
-                    for win in open_windows {
-                        let _ = commands::create_or_show_sticky_window(
-                            app.handle(),
-                            &win.note_id,
-                            Some(win.x),
-                            Some(win.y),
-                            Some(win.width),
-                            Some(win.height),
-                        );
-                    }
-                }
+            if !hotkey.is_empty() {
+                let _ = commands::register_global_shortcut(app.handle().clone(), hotkey);
+            }
+
+            // Restauração de janelas de Notas Adesivas abertas (is_open = 1) sem segurar o lock do SQLite
+            for win in open_windows {
+                let _ = commands::create_or_show_sticky_window(
+                    app.handle(),
+                    &win.note_id,
+                    Some(win.x),
+                    Some(win.y),
+                    Some(win.width),
+                    Some(win.height),
+                );
             }
 
             Ok(())
