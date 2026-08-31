@@ -17,6 +17,16 @@ export interface AppSettings {
   auto_save_interval: number;
 }
 
+export interface StickyWindow {
+  note_id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  is_open: boolean;
+  updated_at: string;
+}
+
 export const dbService = {
   async getNotes(): Promise<Note[]> {
     return await invoke<Note[]>("get_notes");
@@ -36,6 +46,46 @@ export const dbService = {
 
   async clearAllNotes(): Promise<number> {
     return await invoke<number>("clear_all_notes");
+  },
+
+  async openStickyNote(
+    noteId: string,
+    x?: number,
+    y?: number,
+    width?: number,
+    height?: number
+  ): Promise<StickyWindow> {
+    return await invoke<StickyWindow>("open_sticky_note", {
+      noteId,
+      x,
+      y,
+      width,
+      height,
+    });
+  },
+
+  async closeStickyNote(noteId: string): Promise<boolean> {
+    return await invoke<boolean>("close_sticky_note", { noteId });
+  },
+
+  async saveStickyGeometry(
+    noteId: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ): Promise<void> {
+    return await invoke<void>("save_sticky_geometry", {
+      noteId,
+      x,
+      y,
+      width,
+      height,
+    });
+  },
+
+  async getOpenStickyWindows(): Promise<StickyWindow[]> {
+    return await invoke<StickyWindow[]>("get_open_sticky_windows");
   },
 
   async getSettings(): Promise<AppSettings> {

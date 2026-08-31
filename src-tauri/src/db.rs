@@ -23,6 +23,17 @@ pub struct AppSettings {
     pub auto_save_interval: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct StickyWindow {
+    pub note_id: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub is_open: bool,
+    pub updated_at: String,
+}
+
 pub struct DbState {
     pub conn: Mutex<Connection>,
     pub db_path: PathBuf,
@@ -110,6 +121,23 @@ pub fn init_db(db_path: &Path) -> Result<Connection, String> {
         [],
     )
     .map_err(|e| format!("Falha ao criar tabela de configurações: {}", e))?;
+
+    // Tabela sticky_windows
+    conn.execute(
+        "
+        CREATE TABLE IF NOT EXISTS sticky_windows (
+            note_id TEXT PRIMARY KEY,
+            x REAL NOT NULL DEFAULT 100.0,
+            y REAL NOT NULL DEFAULT 100.0,
+            width REAL NOT NULL DEFAULT 280.0,
+            height REAL NOT NULL DEFAULT 280.0,
+            is_open INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL
+        );
+        ",
+        [],
+    )
+    .map_err(|e| format!("Falha ao criar tabela de sticky_windows: {}", e))?;
 
     // Inserir configurações padrão se não existirem
     let default_settings = [
@@ -229,6 +257,9 @@ pub fn db_save_note(conn: &Connection, note: Note) -> Result<Note, String> {
 }
 
 pub fn db_delete_note(conn: &Connection, id: &str) -> Result<bool, String> {
+    // Também remove ou limpa registro de sticky_windows se existir
+    let _ = conn.execute("DELETE FROM sticky_windows WHERE note_id = ?1", params![id]);
+
     let rows_affected = conn
         .execute("DELETE FROM notes WHERE id = ?1", params![id])
         .map_err(|e| format!("Erro ao excluir nota: {}", e))?;
@@ -237,6 +268,8 @@ pub fn db_delete_note(conn: &Connection, id: &str) -> Result<bool, String> {
 }
 
 pub fn db_clear_all_notes(conn: &Connection) -> Result<usize, String> {
+    let _ = conn.execute("DELETE FROM sticky_windows", []);
+
     let rows_affected = conn
         .execute("DELETE FROM notes", [])
         .map_err(|e| format!("Erro ao limpar todas as notas: {}", e))?;
@@ -296,6 +329,124 @@ pub fn db_update_setting(conn: &Connection, key: &str, value: &str) -> Result<()
     .map_err(|e| format!("Erro ao atualizar configuração {}: {}", key, e))?;
 
     Ok(())
+}
+
+/// Funções de Sticky Windows
+pub fn db_save_sticky_geometry(
+    conn: &Connection,
+    note_id: &str,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    let now = chrono_now_str();
+    conn.execute(
+        "
+        INSERT INTO sticky_windows (note_id, x, y, width, height, is_open, updated_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6)
+        ON CONFLICT(note_id) DO UPDATE SET
+            x = excluded.x,
+            y = excluded.y,
+            width = excluded.width,
+            height = excluded.height,
+            updated_at = excluded.updated_at;
+        ",
+        params![note_id, x, y, width, height, now],
+    )
+    .map_err(|e| format!("Erro ao salvar geometria da nota adesiva {}: {}", note_id, e))?;
+
+    Ok(())
+}
+
+pub fn db_set_sticky_open(conn: &Connection, note_id: &str, is_open: bool) -> Result<(), String> {
+    let now = chrono_now_str();
+    let is_open_int = if is_open { 1 } else { 0 };
+
+    conn.execute(
+        "
+        INSERT INTO sticky_windows (note_id, x, y, width, height, is_open, updated_at)
+        VALUES (?1, 100.0, 100.0, 280.0, 280.0, ?2, ?3)
+        ON CONFLICT(note_id) DO UPDATE SET
+            is_open = excluded.is_open,
+            updated_at = excluded.updated_at;
+        ",
+        params![note_id, is_open_int, now],
+    )
+    .map_err(|e| format!("Erro ao alterar estado aberto de sticky note {}: {}", note_id, e))?;
+
+    Ok(())
+}
+
+pub fn db_get_sticky_window(conn: &Connection, note_id: &str) -> Result<Option<StickyWindow>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT note_id, x, y, width, height, is_open, updated_at 
+             FROM sticky_windows 
+             WHERE note_id = ?1",
+        )
+        .map_err(|e| format!("Erro ao preparar busca de sticky window: {}", e))?;
+
+    let window = stmt
+        .query_row(params![note_id], |row| {
+            let is_open_int: i64 = row.get(5)?;
+            Ok(StickyWindow {
+                note_id: row.get(0)?,
+                x: row.get(1)?,
+                y: row.get(2)?,
+                width: row.get(3)?,
+                height: row.get(4)?,
+                is_open: is_open_int != 0,
+                updated_at: row.get(6)?,
+            })
+        })
+        .optional()
+        .map_err(|e| format!("Erro ao buscar sticky window {}: {}", note_id, e))?;
+
+    Ok(window)
+}
+
+pub fn db_get_open_sticky_windows(conn: &Connection) -> Result<Vec<StickyWindow>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT note_id, x, y, width, height, is_open, updated_at 
+             FROM sticky_windows 
+             WHERE is_open = 1 
+             ORDER BY updated_at ASC",
+        )
+        .map_err(|e| format!("Erro ao preparar busca de janelas sticky abertas: {}", e))?;
+
+    let window_iter = stmt
+        .query_map([], |row| {
+            let is_open_int: i64 = row.get(5)?;
+            Ok(StickyWindow {
+                note_id: row.get(0)?,
+                x: row.get(1)?,
+                y: row.get(2)?,
+                width: row.get(3)?,
+                height: row.get(4)?,
+                is_open: is_open_int != 0,
+                updated_at: row.get(6)?,
+            })
+        })
+        .map_err(|e| format!("Erro ao executar busca de janelas sticky abertas: {}", e))?;
+
+    let mut windows = Vec::new();
+    for item in window_iter {
+        windows.push(item.map_err(|e| format!("Erro ao mapear sticky window: {}", e))?);
+    }
+
+    Ok(windows)
+}
+
+fn chrono_now_str() -> String {
+    // Formato ISO-8601 simples sem depender de chrono adicional
+    use std::time::SystemTime;
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    format!("timestamp-{}", now)
 }
 
 /// Exportação do banco de dados para caminho de destino
