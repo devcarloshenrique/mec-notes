@@ -10,10 +10,9 @@ interface StickyNoteViewProps {
 
 export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
   const [note, setNote] = useState<Note | null>(null);
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState("Nota Adesiva");
   const [content, setContent] = useState("");
   const [tab, setTab] = useState<"edit" | "preview">("edit");
-  const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -21,20 +20,19 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
   const geometryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isClosingRef = useRef<boolean>(false);
 
-  // Carregar dados da nota do SQLite
+  // Carregar dados da nota do SQLite de forma não bloqueante e com fallback imediato
   useEffect(() => {
     let isMounted = true;
     const fetchNote = async () => {
       try {
-        setLoading(true);
         const data = await dbService.getNoteById(noteId);
         if (isMounted) {
           if (data) {
             setNote(data);
-            setTitle(data.title || "");
+            setTitle(data.title || "Nota Adesiva");
             setContent(data.content || "");
           } else {
-            // Nota não encontrada ou criada na hora
+            // Nota ainda não gravada ou criada dinamicamente
             const newNote: Note = {
               id: noteId,
               title: "Nota Adesiva",
@@ -44,17 +42,24 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             };
-            const saved = await dbService.saveNote(newNote);
-            setNote(saved);
-            setTitle(saved.title);
-            setContent(saved.content);
+            try {
+              const saved = await dbService.saveNote(newNote);
+              if (isMounted) {
+                setNote(saved);
+                setTitle(saved.title);
+                setContent(saved.content);
+              }
+            } catch {
+              if (isMounted) {
+                setNote(newNote);
+              }
+            }
           }
         }
       } catch (err) {
         console.error("Erro ao carregar nota adesiva:", err);
       } finally {
         if (isMounted) {
-          setLoading(false);
           isInitialMountRef.current = true;
         }
       }
@@ -253,14 +258,6 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
       handleSave(title, content);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-card text-xs text-muted-foreground select-none">
-        Carregando nota adesiva...
-      </div>
-    );
-  }
 
   return (
     <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-card text-foreground select-none border border-border/80 shadow-2xl">
