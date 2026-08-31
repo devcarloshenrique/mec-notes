@@ -1,16 +1,47 @@
-node_modules
-dist
-dist-isolation
-src-tauri/target
-.agent_context
-.multica
-.opencode
-*.log
+# Dependências do Node
+node_modules/
+
+# Builds do Frontend
+dist/
+dist-isolation/
+
+# Builds do Tauri e Rust
+src-tauri/target/
+target/
+*.pdb
+*.exe
+*.msi
+
+# Variáveis de ambiente
 .env
 .env.*
-.DS_Store
-Thumbs.db
+!.env.example
+
+# Bancos de dados locais SQLite
 *.db
 *.db-journal
 *.db-wal
 *.db-shm
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDEs e Editores
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Agentes e Runtimes Locais
+.agent_context/
+.multica/
+.opencode/
