@@ -19,6 +19,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialMountRef = useRef<boolean>(true);
   const geometryTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isClosingRef = useRef<boolean>(false);
 
   // Carregar dados da nota do SQLite
   useEffect(() => {
@@ -119,27 +120,32 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
     };
   }, [title, content, note, handleSave]);
 
-  // Capturar e salvar geometria (posição e tamanho) da janela
+  // Capturar e salvar geometria (posição e tamanho) da janela com debounce
   useEffect(() => {
     let unlistenResize: (() => void) | null = null;
     let unlistenMove: (() => void) | null = null;
+    let isDisposed = false;
 
     const setupGeometryListeners = async () => {
       try {
         const currentWin = getCurrentWindow();
 
-        const saveGeometry = async () => {
+        const saveGeometry = () => {
+          if (isDisposed || isClosingRef.current) return;
           if (geometryTimerRef.current) {
             clearTimeout(geometryTimerRef.current);
           }
 
           geometryTimerRef.current = setTimeout(async () => {
+            if (isDisposed || isClosingRef.current) return;
             try {
               const [pos, size, scale] = await Promise.all([
                 currentWin.outerPosition(),
                 currentWin.innerSize(),
                 currentWin.scaleFactor(),
               ]);
+
+              if (isDisposed || isClosingRef.current) return;
 
               const logicalPos = pos.toLogical(scale);
               const logicalSize = size.toLogical(scale);
@@ -154,16 +160,26 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
             } catch (err) {
               console.error("Erro ao persistir geometria da janela adesiva:", err);
             }
-          }, 300);
+          }, 350);
         };
 
-        unlistenResize = await currentWin.onResized(() => {
+        const resFn = await currentWin.onResized(() => {
           saveGeometry();
         });
+        if (isDisposed) {
+          resFn();
+        } else {
+          unlistenResize = resFn;
+        }
 
-        unlistenMove = await currentWin.onMoved(() => {
+        const moveFn = await currentWin.onMoved(() => {
           saveGeometry();
         });
+        if (isDisposed) {
+          moveFn();
+        } else {
+          unlistenMove = moveFn;
+        }
       } catch (err) {
         console.error("Erro ao configurar listeners de geometria:", err);
       }
@@ -172,25 +188,36 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
     setupGeometryListeners();
 
     return () => {
-      if (geometryTimerRef.current) clearTimeout(geometryTimerRef.current);
+      isDisposed = true;
+      if (geometryTimerRef.current) {
+        clearTimeout(geometryTimerRef.current);
+        geometryTimerRef.current = null;
+      }
       if (unlistenResize) unlistenResize();
       if (unlistenMove) unlistenMove();
     };
   }, [noteId]);
 
-  // Fechar a nota adesiva
+  // Fechar a nota adesiva de forma segura e sem concorrência
   const handleClose = async () => {
+    if (isClosingRef.current) return;
+    isClosingRef.current = true;
+
     try {
+      if (geometryTimerRef.current) {
+        clearTimeout(geometryTimerRef.current);
+        geometryTimerRef.current = null;
+      }
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
+        debounceTimerRef.current = null;
       }
       if (note && (title !== note.title || content !== note.content)) {
         await handleSave(title, content);
       }
       await dbService.closeStickyNote(noteId);
-      await getCurrentWindow().close();
     } catch (err) {
-      console.error("Erro ao fechar nota adesiva:", err);
+      console.error("Erro ao fechar nota adesiva via IPC:", err);
       try {
         await getCurrentWindow().close();
       } catch (e) {
