@@ -183,6 +183,9 @@ pub mod commands {
             let _ = window.center();
         }
 
+        // Pequeno yield/delay para que o HWND registre no mapa de janelas antes de chamar show/set_focus
+        std::thread::sleep(std::time::Duration::from_millis(30));
+
         let _ = window.show();
         let _ = window.set_focus();
 
@@ -190,7 +193,7 @@ pub mod commands {
     }
 
     #[tauri::command]
-    pub fn open_sticky_note(
+    pub async fn open_sticky_note(
         app: AppHandle,
         state: State<'_, DbState>,
         note_id: String,
@@ -218,15 +221,21 @@ pub mod commands {
             ),
         };
 
-        // Criação e exibição da janela Tauri sem segurar lock do SQLite
-        let _ = create_or_show_sticky_window(&app, &note_id, use_x, use_y, use_w, use_h)?;
+        // Criação e exibição da janela Tauri em thread separada para evitar deadlock no Windows com WebView2
+        let app_handle = app.clone();
+        let note_id_clone = note_id.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            create_or_show_sticky_window(&app_handle, &note_id_clone, use_x, use_y, use_w, use_h)
+        })
+        .await
+        .map_err(|e| format!("Erro na thread de criação da janela: {}", e))??;
 
         let final_x = use_x.unwrap_or(100.0);
         let final_y = use_y.unwrap_or(100.0);
         let final_w = use_w.unwrap_or(280.0);
         let final_h = use_h.unwrap_or(280.0);
 
-        // Persistir a geometria inicial/restaurada de forma rápida sem chamadas síncronas de inspeção de janela
+        // Persistir a geometria inicial/restaurada de forma rápida
         {
             let conn = state
                 .conn
@@ -247,7 +256,7 @@ pub mod commands {
     }
 
     #[tauri::command]
-    pub fn close_sticky_note(
+    pub async fn close_sticky_note(
         app: AppHandle,
         state: State<'_, DbState>,
         note_id: String,
@@ -326,7 +335,7 @@ pub mod commands {
     }
 
     #[tauri::command]
-    pub fn delete_note(
+    pub async fn delete_note(
         app: AppHandle,
         state: State<'_, DbState>,
         id: String,
@@ -345,7 +354,7 @@ pub mod commands {
     }
 
     #[tauri::command]
-    pub fn clear_all_notes(app: AppHandle, state: State<'_, DbState>) -> Result<usize, String> {
+    pub async fn clear_all_notes(app: AppHandle, state: State<'_, DbState>) -> Result<usize, String> {
         // Fechar todas as janelas sticky abertas
         for (label, window) in app.webview_windows() {
             if label.starts_with("sticky-") {
@@ -606,16 +615,25 @@ pub fn run() {
                 let _ = commands::register_global_shortcut(app.handle().clone(), hotkey);
             }
 
-            // Restauração de janelas de Notas Adesivas abertas (is_open = 1) sem segurar o lock do SQLite
-            for win in open_windows {
-                let _ = commands::create_or_show_sticky_window(
-                    app.handle(),
-                    &win.note_id,
-                    Some(win.x),
-                    Some(win.y),
-                    Some(win.width),
-                    Some(win.height),
-                );
+            // Restauração de janelas de Notas Adesivas abertas de forma desacoplada em thread dedicada após o setup
+            if !open_windows.is_empty() {
+                let app_handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    // Pequeno delay para garantir que o WebView2 e o event loop do Tauri estejam 100% inicializados
+                    std::thread::sleep(std::time::Duration::from_millis(300));
+                    for win in open_windows {
+                        let _ = commands::create_or_show_sticky_window(
+                            &app_handle,
+                            &win.note_id,
+                            Some(win.x),
+                            Some(win.y),
+                            Some(win.width),
+                            Some(win.height),
+                        );
+                        // Espaçamento de 100ms entre janelas para evitar contenção de I/O
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
+                });
             }
 
             Ok(())
@@ -643,6 +661,16 @@ pub fn run() {
             commands::import_notes_db,
             commands::get_db_path,
         ])
-        .run(tauri::generate_context!())
-        .expect("erro ao executar aplicação Tauri");
+        .build(tauri::generate_context!())
+        .expect("erro ao construir aplicação Tauri")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                // Ao fechar a aplicação, limpa o estado is_open de todas as sticky notes no SQLite para evitar restaurações "fantasma" que causam travamentos
+                if let Some(state) = app_handle.try_state::<DbState>() {
+                    if let Ok(conn) = state.conn.lock() {
+                        let _ = conn.execute("UPDATE sticky_windows SET is_open = 0", []);
+                    }
+                }
+            }
+        });
 }
