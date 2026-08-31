@@ -1,11 +1,35 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { WindowTitlebar } from "./components/WindowTitlebar";
 import { NotesSidebar } from "./components/NotesSidebar";
 import { MarkdownEditor } from "./components/MarkdownEditor";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { StickyNoteView } from "./components/StickyNoteView";
 import { dbService, Note, AppSettings } from "./services/db";
 
 export default function App() {
+  // Detectar rota de Sticky Note: ?sticky=<id> ou ?sticky=true&noteId=<id>
+  const stickyNoteId = useMemo(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sticky = params.get("sticky");
+    const noteId = params.get("noteId");
+
+    if (sticky && sticky !== "true") {
+      return sticky;
+    }
+    if ((sticky === "true" || sticky === "1") && noteId) {
+      return noteId;
+    }
+    if (noteId) {
+      return noteId;
+    }
+    return null;
+  }, []);
+
+  // Se a rota for uma nota adesiva individual, renderizar diretamente o StickyNoteView
+  if (stickyNoteId) {
+    return <StickyNoteView noteId={stickyNoteId} />;
+  }
+
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeNote, setActiveNote] = useState<Note | null>(null);
   const [query, setQuery] = useState("");
@@ -167,6 +191,15 @@ Checklist inicial do projeto **mec-notes**.
     await handleSaveNote(updated);
   };
 
+  // Abrir nota como Sticky Note na área de trabalho
+  const handleOpenSticky = async (note: Note) => {
+    try {
+      await dbService.openStickyNote(note.id);
+    } catch (err) {
+      console.error("Erro ao abrir nota adesiva:", err);
+    }
+  };
+
   // Atalhos de teclado locais
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -208,6 +241,7 @@ Checklist inicial do projeto **mec-notes**.
             onCreate={handleCreateNote}
             onDelete={handleDeleteNote}
             onTogglePin={handleTogglePin}
+            onOpenSticky={handleOpenSticky}
           />
         )}
 
@@ -220,6 +254,7 @@ Checklist inicial do projeto **mec-notes**.
             note={activeNote}
             onSaveNote={handleSaveNote}
             onTogglePin={handleTogglePin}
+            onOpenSticky={handleOpenSticky}
             autoSaveInterval={settings?.auto_save_interval ?? 500}
           />
         )}

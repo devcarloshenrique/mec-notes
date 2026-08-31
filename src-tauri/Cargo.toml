@@ -1,6 +1,6 @@
 [package]
 name = "mec-notes"
-version = "0.0.1"
+version = "0.0.2"
 description = "Bloco de Notas Rapido para Windows com Tauri v2"
 authors = ["devca"]
 edition = "2021"

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Pin, Plus, Search, Trash2, AlertTriangle } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Pin, Plus, Search, Trash2, AlertTriangle, StickyNote } from "lucide-react";
 import { formatRelative } from "../lib/utils";
 import { Note } from "../services/db";
 
@@ -12,7 +12,14 @@ type Props = {
   onCreate: () => void;
   onDelete: (id: string) => void;
   onTogglePin?: (note: Note) => void;
+  onOpenSticky?: (note: Note) => void;
 };
+
+interface ContextMenuState {
+  x: number;
+  y: number;
+  note: Note;
+}
 
 export const NotesSidebar: React.FC<Props> = ({
   notes,
@@ -23,8 +30,58 @@ export const NotesSidebar: React.FC<Props> = ({
   onCreate,
   onDelete,
   onTogglePin,
+  onOpenSticky,
 }) => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const contextMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Fechar menu de contexto ao clicar fora ou pressionar ESC
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        contextMenuRef.current &&
+        !contextMenuRef.current.contains(e.target as Node)
+      ) {
+        setContextMenu(null);
+      }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setContextMenu(null);
+      }
+    };
+
+    window.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  const handleContextMenu = (e: React.MouseEvent, note: Note) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Ajustar posição para manter dentro da janela
+    const clickX = e.clientX;
+    const clickY = e.clientY;
+    const menuWidth = 190;
+    const menuHeight = 110;
+
+    const x =
+      clickX + menuWidth > window.innerWidth ? window.innerWidth - menuWidth - 8 : clickX;
+    const y =
+      clickY + menuHeight > window.innerHeight ? window.innerHeight - menuHeight - 8 : clickY;
+
+    setContextMenu({
+      x,
+      y,
+      note,
+    });
+  };
 
   const filtered = notes.filter((n) => {
     const q = query.toLowerCase().trim();
@@ -43,6 +100,7 @@ export const NotesSidebar: React.FC<Props> = ({
   const confirmDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setDeletingId(id);
+    setContextMenu(null);
   };
 
   const handleExecuteDelete = (e: React.MouseEvent, id: string) => {
@@ -64,7 +122,7 @@ export const NotesSidebar: React.FC<Props> = ({
   };
 
   return (
-    <aside className="flex w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar h-full overflow-hidden">
+    <aside className="relative flex w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar h-full overflow-hidden">
       {/* Cabeçalho da Sidebar com Input e Botão Criar */}
       <div className="flex items-center gap-2 px-3 pb-2 pt-3">
         <div className="relative flex-1">
@@ -137,6 +195,7 @@ export const NotesSidebar: React.FC<Props> = ({
                 <li key={note.id}>
                   <button
                     onClick={() => onSelect(note)}
+                    onContextMenu={(e) => handleContextMenu(e, note)}
                     className={`group flex w-full flex-col gap-0.5 rounded-md border px-2.5 py-2 text-left transition-colors ${
                       active
                         ? "border-white/10 bg-accent"
@@ -159,6 +218,21 @@ export const NotesSidebar: React.FC<Props> = ({
                         {note.title.trim() || "Sem título"}
                       </span>
                       <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        {onOpenSticky && (
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            aria-label="Fixar na área de trabalho"
+                            title="Fixar na área de trabalho"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onOpenSticky(note);
+                            }}
+                            className="text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                          >
+                            <StickyNote className="size-3" />
+                          </span>
+                        )}
                         {onTogglePin && !note.is_pinned && (
                           <span
                             role="button"
@@ -196,6 +270,52 @@ export const NotesSidebar: React.FC<Props> = ({
           )}
         </ul>
       </nav>
+
+      {/* Menu de Contexto Flutuante (Clique Direito) */}
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
+          className="fixed z-50 min-w-[170px] overflow-hidden rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-xl backdrop-blur animate-in fade-in-80"
+        >
+          {onOpenSticky && (
+            <button
+              onClick={() => {
+                onOpenSticky(contextMenu.note);
+                setContextMenu(null);
+              }}
+              className="flex w-full items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-xs transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <StickyNote className="size-3.5 text-muted-foreground" />
+              <span>Fixar na área de trabalho</span>
+            </button>
+          )}
+
+          {onTogglePin && (
+            <button
+              onClick={() => {
+                onTogglePin(contextMenu.note);
+                setContextMenu(null);
+              }}
+              className="flex w-full items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-xs transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Pin className="size-3.5 text-muted-foreground" />
+              <span>{contextMenu.note.is_pinned ? "Desafixar do topo" : "Fixar no topo"}</span>
+            </button>
+          )}
+
+          <div className="my-1 h-px bg-border" />
+
+          <button
+            onClick={(e) => confirmDelete(e, contextMenu.note.id)}
+            className="flex w-full items-center gap-2 rounded-sm px-2.5 py-1.5 text-left text-xs text-destructive transition-colors hover:bg-destructive/15"
+          >
+            <Trash2 className="size-3.5" />
+            <span>Excluir nota</span>
+          </button>
+        </div>
+      )}
     </aside>
   );
 };
+

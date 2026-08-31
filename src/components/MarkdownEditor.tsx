@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Eye, Pencil, Pin } from "lucide-react";
+import { Eye, Pencil, Pin, StickyNote } from "lucide-react";
 import { MarkdownPreview } from "./MarkdownPreview";
 import { formatRelative } from "../lib/utils";
 import { Note } from "../services/db";
@@ -9,6 +9,7 @@ type Props = {
   onSaveNote: (updatedNote: Note) => Promise<void> | void;
   onSaveStateChange?: (state: "saved" | "saving" | "unsaved") => void;
   onTogglePin?: (note: Note) => void;
+  onOpenSticky?: (note: Note) => void;
   autoSaveInterval?: number;
 };
 
@@ -17,6 +18,7 @@ export const MarkdownEditor: React.FC<Props> = ({
   onSaveNote,
   onSaveStateChange,
   onTogglePin,
+  onOpenSticky,
   autoSaveInterval = 500,
 }) => {
   const [tab, setTab] = useState<"edit" | "preview">("edit");
@@ -136,6 +138,16 @@ export const MarkdownEditor: React.FC<Props> = ({
                 note.is_pinned ? "fill-primary text-primary" : ""
               }`}
             />
+          </button>
+        )}
+        {onOpenSticky && (
+          <button
+            onClick={() => onOpenSticky(note)}
+            aria-label="Fixar como Nota Adesiva na área de trabalho"
+            title="Fixar como Nota Adesiva na área de trabalho"
+            className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <StickyNote className="size-3.5" />
           </button>
         )}
         <input
