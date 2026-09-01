@@ -15,6 +15,12 @@ Projetado para captura rápida de notas, suporte a Markdown, atalhos globais per
 - 🪟 **Modo Flutuante e Modo Janela:**
   - **Flutuante:** Janela compacta, sem bordas/decorações, fixada no canto inferior direito (*Always on Top*).
   - **Janela Padrão:** Janela expandida centralizada com decorações nativas do Windows.
+- 📌 **Notas Adesivas Destacáveis (Sticky Notes):**
+  - Destaque qualquer nota em uma janela independente e compacta (*Always on Top*), estilo post-it do Windows.
+  - Edição fluida com alternância para Markdown Preview, criação rápida de novas notas e cópia instantânea.
+  - Persistência nativa de posição `(x, y)` e dimensões `(largura, altura)` no SQLite com restauração automática de sessão ao reiniciar o aplicativo.
+- 🔄 **Sincronização Bidirecional em Tempo Real:**
+  - Atualização instantânea de conteúdo e metadados entre a janela principal e as notas adesivas via barramento de eventos do Tauri, sem conflitos ou travamentos.
 - ⌨️ **Atalho Global de Sistema (Global Hotkey):**
   - Exiba ou oculte a aplicação instantaneamente de qualquer lugar (padrão: `Ctrl+Shift+Space`).
   - Atalho reconfigurável com persistência no banco.
@@ -25,7 +31,7 @@ Projetado para captura rápida de notas, suporte a Markdown, atalhos globais per
 - 📝 **Editor Markdown com Auto-Save:**
   - Suporte completo a Markdown (títulos, listas, checkboxes, citações, formatação inline).
   - Salvamento automático com debounce em tempo real.
-  - Fixação de notas no topo (*Pin*) e pesquisa por título/conteúdo.
+  - Fixação de notas no topo (*Pin*), menu de contexto e pesquisa por título/conteúdo.
 - 🔄 **Backup e Restauração:**
   - Exportação e importação do banco de dados completo (`.db`) com diálogo nativo de arquivos.
 
@@ -134,16 +140,16 @@ rustup target add i686-pc-windows-msvc
 ```
 mec-notes/
 ├── src/                    # Frontend (React + TypeScript + Tailwind)
-│   ├── components/         # Componentes UI (Editor, Sidebar, Titlebar, Settings)
+│   ├── components/         # Componentes UI (Editor, Sidebar, StickyNoteView, Titlebar, Settings)
 │   ├── services/           # Comunicação IPC com o backend Tauri (dbService)
-│   ├── App.tsx             # Estado principal e lógica da aplicação
+│   ├── App.tsx             # Estado principal e roteamento da janela (Main vs Sticky)
 │   └── main.tsx            # Ponto de entrada do React
 ├── src-tauri/              # Backend (Rust + Tauri v2)
 │   ├── src/
-│   │   ├── db.rs           # Camada SQLite, migrações e persistência
-│   │   ├── lib.rs          # Comandos IPC, System Tray e Atalhos Globais
+│   │   ├── db.rs           # Camada SQLite, migrações, sticky_windows e persistência
+│   │   ├── lib.rs          # Gerenciamento de janelas, IPC, System Tray e Atalhos Globais
 │   │   ├── main.rs         # Inicialização do executável
-│   │   └── tests.rs        # Testes unitários do SQLite
+│   │   └── tests.rs        # Testes unitários do SQLite e janelas adesivas
 │   ├── Cargo.toml          # Dependências Rust
 │   └── tauri.conf.json     # Configurações do Tauri (janelas, permissões, etc.)
 └── package.json            # Scripts e dependências do Node.js
