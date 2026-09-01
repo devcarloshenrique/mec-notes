@@ -184,7 +184,7 @@ export const MarkdownEditor: React.FC<Props> = ({
       </div>
 
       {/* Área de Conteúdo da Nota */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-hidden">
         {tab === "edit" ? (
           <textarea
             value={content}
@@ -192,10 +192,10 @@ export const MarkdownEditor: React.FC<Props> = ({
             onBlur={handleBlur}
             spellCheck={false}
             placeholder="Comece a escrever em Markdown…"
-            className="h-full w-full resize-none bg-transparent p-4 font-mono text-[13px] leading-relaxed text-foreground/90 outline-none placeholder:text-muted-foreground"
+            className="h-full w-full resize-none overflow-y-auto bg-transparent p-4 font-mono text-[13px] leading-relaxed text-foreground/90 outline-none placeholder:text-muted-foreground"
           />
         ) : (
-          <div className="p-4">
+          <div className="h-full overflow-y-auto p-4">
             <MarkdownPreview source={content} />
           </div>
         )}
