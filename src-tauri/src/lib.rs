@@ -3,19 +3,24 @@ pub mod db;
 pub mod commands {
     use std::path::PathBuf;
     use tauri::{
-        AppHandle, LogicalSize, Manager, PhysicalPosition, Position, Size, State, WebviewWindow,
+        AppHandle, LogicalSize, Manager, PhysicalPosition, Position, Size, State, WebviewUrl,
+        WebviewWindow, WebviewWindowBuilder,
     };
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
     use crate::db::{
         db_clear_all_notes, db_delete_note, db_export_to, db_get_note_by_id, db_get_notes,
-        db_get_settings, db_import_from, db_save_note, db_update_setting, AppSettings, DbState,
-        Note,
+        db_get_open_sticky_windows, db_get_settings, db_get_sticky_window, db_import_from,
+        db_save_note, db_save_sticky_geometry, db_set_sticky_open, db_update_setting, AppSettings,
+        DbState, Note, StickyWindow,
     };
 
     // ==========================================
     // Comandos de Janela e Atalhos
     // ==========================================
+
+    use std::sync::Mutex as StdMutex;
+    static WINDOW_MODE_LOCK: StdMutex<()> = StdMutex::new(());
 
     #[tauri::command]
     pub fn toggle_window_visibility(app: AppHandle) -> Result<bool, String> {
@@ -36,6 +41,8 @@ pub mod commands {
 
     #[tauri::command]
     pub fn set_floating_mode(window: WebviewWindow) -> Result<(), String> {
+        let _guard = WINDOW_MODE_LOCK.lock().map_err(|e| e.to_string())?;
+
         // Configurações para modo flutuante: sem decorações, sempre no topo, canto inferior direito
         window.set_decorations(false).map_err(|e| e.to_string())?;
         window.set_always_on_top(true).map_err(|e| e.to_string())?;
@@ -78,6 +85,8 @@ pub mod commands {
 
     #[tauri::command]
     pub fn set_window_mode(window: WebviewWindow) -> Result<(), String> {
+        let _guard = WINDOW_MODE_LOCK.lock().map_err(|e| e.to_string())?;
+
         // Configurações para modo janela: sem decorações nativas (usa custom titlebar), centralizado e redimensionável
         window.set_decorations(false).map_err(|e| e.to_string())?;
         window.set_always_on_top(false).map_err(|e| e.to_string())?;
@@ -127,6 +136,181 @@ pub mod commands {
     }
 
     // ==========================================
+    // Comandos de Notas Adesivas (Sticky Notes)
+    // ==========================================
+
+    pub fn sticky_window_label(note_id: &str) -> String {
+        format!("sticky-{}", note_id)
+    }
+
+    pub fn create_or_show_sticky_window(
+        app: &AppHandle,
+        note_id: &str,
+        x: Option<f64>,
+        y: Option<f64>,
+        width: Option<f64>,
+        height: Option<f64>,
+    ) -> Result<WebviewWindow, String> {
+        let label = sticky_window_label(note_id);
+
+        if let Some(existing_window) = app.get_webview_window(&label) {
+            let _ = existing_window.show();
+            let _ = existing_window.set_focus();
+            return Ok(existing_window);
+        }
+
+        let w = width.unwrap_or(280.0).max(180.0);
+        let h = height.unwrap_or(280.0).max(150.0);
+
+        let webview_url = WebviewUrl::App("index.html".into());
+
+        let builder = WebviewWindowBuilder::new(app, &label, webview_url)
+            .title("Nota Adesiva")
+            .inner_size(w, h)
+            .min_inner_size(180.0, 150.0)
+            .decorations(false)
+            .skip_taskbar(true)
+            .always_on_top(false)
+            .transparent(false)
+            .background_color(tauri::window::Color(20, 20, 21, 255))
+            .resizable(true)
+            .shadow(true);
+
+        let builder = if let (Some(pos_x), Some(pos_y)) = (x, y) {
+            builder.position(pos_x, pos_y)
+        } else {
+            builder
+        };
+
+        let window = builder
+            .build()
+            .map_err(|e| format!("Falha ao criar janela da nota adesiva '{}': {}", note_id, e))?;
+
+        if x.is_none() || y.is_none() {
+            let _ = window.center();
+        }
+
+        // Pequeno yield/delay para que o HWND registre no mapa de janelas antes de chamar show/set_focus
+        std::thread::sleep(std::time::Duration::from_millis(30));
+
+        let _ = window.show();
+        let _ = window.set_focus();
+
+        Ok(window)
+    }
+
+    #[tauri::command]
+    pub async fn open_sticky_note(
+        app: AppHandle,
+        state: State<'_, DbState>,
+        note_id: String,
+        x: Option<f64>,
+        y: Option<f64>,
+        width: Option<f64>,
+        height: Option<f64>,
+    ) -> Result<StickyWindow, String> {
+        // Obter configuração prévia do banco liberando o lock imediatamente antes de criar a janela Tauri
+        let saved = {
+            let conn = state
+                .conn
+                .lock()
+                .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+            db_get_sticky_window(&conn, &note_id)?
+        };
+
+        let (use_x, use_y, use_w, use_h) = match (saved.as_ref(), x, y, width, height) {
+            (Some(s), None, None, None, None) => (Some(s.x), Some(s.y), Some(s.width), Some(s.height)),
+            _ => (
+                x.or_else(|| saved.as_ref().map(|s| s.x)),
+                y.or_else(|| saved.as_ref().map(|s| s.y)),
+                width.or_else(|| saved.as_ref().map(|s| s.width)).or(Some(280.0)),
+                height.or_else(|| saved.as_ref().map(|s| s.height)).or(Some(280.0)),
+            ),
+        };
+
+        // Criação e exibição da janela Tauri em thread separada para evitar deadlock no Windows com WebView2
+        let app_handle = app.clone();
+        let note_id_clone = note_id.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            create_or_show_sticky_window(&app_handle, &note_id_clone, use_x, use_y, use_w, use_h)
+        })
+        .await
+        .map_err(|e| format!("Erro na thread de criação da janela: {}", e))??;
+
+        let final_x = use_x.unwrap_or(100.0);
+        let final_y = use_y.unwrap_or(100.0);
+        let final_w = use_w.unwrap_or(280.0);
+        let final_h = use_h.unwrap_or(280.0);
+
+        // Persistir a geometria inicial/restaurada de forma rápida
+        {
+            let conn = state
+                .conn
+                .lock()
+                .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+            db_save_sticky_geometry(&conn, &note_id, final_x, final_y, final_w, final_h)?;
+        }
+
+        Ok(StickyWindow {
+            note_id,
+            x: final_x,
+            y: final_y,
+            width: final_w,
+            height: final_h,
+            is_open: true,
+            updated_at: "now".to_string(),
+        })
+    }
+
+    #[tauri::command]
+    pub async fn close_sticky_note(
+        app: AppHandle,
+        state: State<'_, DbState>,
+        note_id: String,
+    ) -> Result<bool, String> {
+        let label = sticky_window_label(&note_id);
+        if let Some(window) = app.get_webview_window(&label) {
+            let _ = window.close();
+        }
+
+        let conn = state
+            .conn
+            .lock()
+            .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+
+        db_set_sticky_open(&conn, &note_id, false)?;
+        Ok(true)
+    }
+
+    #[tauri::command]
+    pub fn save_sticky_geometry(
+        state: State<'_, DbState>,
+        note_id: String,
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+    ) -> Result<(), String> {
+        let conn = state
+            .conn
+            .lock()
+            .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+
+        db_save_sticky_geometry(&conn, &note_id, x, y, width, height)?;
+        Ok(())
+    }
+
+    #[tauri::command]
+    pub fn get_open_sticky_windows(state: State<'_, DbState>) -> Result<Vec<StickyWindow>, String> {
+        let conn = state
+            .conn
+            .lock()
+            .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+
+        db_get_open_sticky_windows(&conn)
+    }
+
+    // ==========================================
     // Comandos SQLite de Notas (CRUD)
     // ==========================================
 
@@ -158,7 +342,17 @@ pub mod commands {
     }
 
     #[tauri::command]
-    pub fn delete_note(state: State<'_, DbState>, id: String) -> Result<bool, String> {
+    pub async fn delete_note(
+        app: AppHandle,
+        state: State<'_, DbState>,
+        id: String,
+    ) -> Result<bool, String> {
+        // Se a nota estiver aberta como sticky, fechar a janela correspondente
+        let label = sticky_window_label(&id);
+        if let Some(window) = app.get_webview_window(&label) {
+            let _ = window.close();
+        }
+
         let conn = state
             .conn
             .lock()
@@ -167,7 +361,14 @@ pub mod commands {
     }
 
     #[tauri::command]
-    pub fn clear_all_notes(state: State<'_, DbState>) -> Result<usize, String> {
+    pub async fn clear_all_notes(app: AppHandle, state: State<'_, DbState>) -> Result<usize, String> {
+        // Fechar todas as janelas sticky abertas
+        for (label, window) in app.webview_windows() {
+            if label.starts_with("sticky-") {
+                let _ = window.close();
+            }
+        }
+
         let conn = state
             .conn
             .lock()
@@ -403,14 +604,43 @@ pub fn run() {
                 let _ = commands::set_floating_mode(window);
             }
 
-            // Carrega e registra o atalho global persistido no SQLite
+            // Carrega e registra o atalho global persistido no SQLite e restaura Sticky Windows abertas
             let state = app.state::<DbState>();
-            if let Ok(conn) = state.conn.lock() {
-                if let Ok(settings) = crate::db::db_get_settings(&conn) {
-                    if !settings.hotkey.is_empty() {
-                        let _ = commands::register_global_shortcut(app.handle().clone(), settings.hotkey);
-                    }
+            let (hotkey, open_windows) = {
+                if let Ok(conn) = state.conn.lock() {
+                    let hotkey = crate::db::db_get_settings(&conn)
+                        .map(|s| s.hotkey)
+                        .unwrap_or_default();
+                    let windows = crate::db::db_get_open_sticky_windows(&conn).unwrap_or_default();
+                    (hotkey, windows)
+                } else {
+                    (String::new(), Vec::new())
                 }
+            };
+
+            if !hotkey.is_empty() {
+                let _ = commands::register_global_shortcut(app.handle().clone(), hotkey);
+            }
+
+            // Restauração de janelas de Notas Adesivas abertas de forma desacoplada em thread dedicada após o setup
+            if !open_windows.is_empty() {
+                let app_handle = app.handle().clone();
+                std::thread::spawn(move || {
+                    // Pequeno delay para garantir que o WebView2 e o event loop do Tauri estejam 100% inicializados
+                    std::thread::sleep(std::time::Duration::from_millis(300));
+                    for win in open_windows {
+                        let _ = commands::create_or_show_sticky_window(
+                            &app_handle,
+                            &win.note_id,
+                            Some(win.x),
+                            Some(win.y),
+                            Some(win.width),
+                            Some(win.height),
+                        );
+                        // Espaçamento de 100ms entre janelas para evitar contenção de I/O
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
+                });
             }
 
             Ok(())
@@ -421,6 +651,10 @@ pub fn run() {
             commands::set_window_mode,
             commands::minimize_to_tray,
             commands::register_global_shortcut,
+            commands::open_sticky_note,
+            commands::close_sticky_note,
+            commands::save_sticky_geometry,
+            commands::get_open_sticky_windows,
             commands::get_notes,
             commands::get_note_by_id,
             commands::save_note,
@@ -434,6 +668,17 @@ pub fn run() {
             commands::import_notes_db,
             commands::get_db_path,
         ])
-        .run(tauri::generate_context!())
-        .expect("erro ao executar aplicação Tauri");
+        .build(tauri::generate_context!())
+        .expect("erro ao construir aplicação Tauri")
+        .run(|app_handle, event| {
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                // Ao fechar a aplicação, limpa o estado is_open de todas as sticky notes no SQLite para evitar restaurações "fantasma" que causam travamentos
+                if let Some(state) = app_handle.try_state::<DbState>() {
+                    if let Ok(conn) = state.conn.lock() {
+                        let _ = conn.execute("UPDATE sticky_windows SET is_open = 0", []);
+                    }
+                }
+            }
+        });
 }
+
