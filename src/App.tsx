@@ -1,16 +1,62 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { WindowTitlebar } from "./components/WindowTitlebar";
 import { NotesSidebar } from "./components/NotesSidebar";
 import { MarkdownEditor } from "./components/MarkdownEditor";
 import { SettingsPanel } from "./components/SettingsPanel";
+import { StickyNoteView } from "./components/StickyNoteView";
 import { dbService, Note, AppSettings } from "./services/db";
 
 export default function App() {
+  // Detectar se a janela atual é uma Sticky Note (síncrona via label da WebviewWindow ou URL)
+  const stickyNoteId = useMemo(() => {
+    try {
+      // 1. Tentar detectar pela label nativa do Tauri (ex: "sticky-1234")
+      const win = getCurrentWindow();
+      const label = win?.label;
+      if (label && label.startsWith("sticky-")) {
+        const id = label.replace("sticky-", "");
+        if (id) return id;
+      }
+
+      // 2. Fallback via URLSearchParams (?sticky=<id> ou ?sticky=true&noteId=<id>)
+      const params = new URLSearchParams(window.location.search);
+      const sticky = params.get("sticky");
+      const noteId = params.get("noteId");
+      const pinnedNoteId = params.get("pinnedNoteId");
+
+      if (pinnedNoteId) {
+        return pinnedNoteId;
+      }
+      if (sticky && sticky !== "true") {
+        return sticky;
+      }
+      if ((sticky === "true" || sticky === "1") && noteId) {
+        return noteId;
+      }
+      if (noteId) {
+        return noteId;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }, []);
+
+  if (stickyNoteId) {
+    return <StickyNoteView noteId={stickyNoteId} />;
+  }
+
+  return <MainApp />;
+}
+
+function MainApp() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [activeNote, setActiveNote] = useState<Note | null>(null);
   const [query, setQuery] = useState("");
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [mode, setMode] = useState<"floating" | "window">("floating");
+  const [isToggling, setIsToggling] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,6 +124,8 @@ Checklist inicial do projeto **mec-notes**.
 
   // Alternância entre Modo Flutuante e Modo Janela
   const handleToggleMode = async () => {
+    if (isToggling) return;
+    setIsToggling(true);
     try {
       if (mode === "floating") {
         await dbService.setWindowMode();
@@ -89,6 +137,8 @@ Checklist inicial do projeto **mec-notes**.
     } catch (err) {
       console.error("Erro ao alternar modo:", err);
       setMode((m) => (m === "floating" ? "window" : "floating"));
+    } finally {
+      setIsToggling(false);
     }
   };
 
@@ -145,6 +195,8 @@ Checklist inicial do projeto **mec-notes**.
   // Excluir nota
   const handleDeleteNote = async (id: string) => {
     try {
+      // Se a nota estiver aberta como sticky, fecha a janela correspondente
+      await dbService.closeStickyNote(id).catch(() => {});
       await dbService.deleteNote(id);
       const remainingNotes = notes.filter((n) => n.id !== id);
       setNotes(remainingNotes);
@@ -157,7 +209,7 @@ Checklist inicial do projeto **mec-notes**.
     }
   };
 
-  // Fixar / desafixar nota
+  // Fixar / desafixar nota no topo da lista
   const handleTogglePin = async (note: Note) => {
     const updated = {
       ...note,
@@ -165,6 +217,15 @@ Checklist inicial do projeto **mec-notes**.
       updated_at: new Date().toISOString(),
     };
     await handleSaveNote(updated);
+  };
+
+  // Abrir nota como Sticky Note na área de trabalho
+  const handleOpenSticky = async (note: Note) => {
+    try {
+      await dbService.openStickyNote(note.id);
+    } catch (err) {
+      console.error("Erro ao abrir nota adesiva:", err);
+    }
   };
 
   // Atalhos de teclado locais
@@ -194,6 +255,7 @@ Checklist inicial do projeto **mec-notes**.
         onMinimize={handleMinimize}
         onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
         isSidebarOpen={isSidebarOpen}
+        isToggling={isToggling}
       />
 
       {/* Conteúdo Principal (Sidebar + Editor) */}
@@ -208,6 +270,7 @@ Checklist inicial do projeto **mec-notes**.
             onCreate={handleCreateNote}
             onDelete={handleDeleteNote}
             onTogglePin={handleTogglePin}
+            onOpenSticky={handleOpenSticky}
           />
         )}
 
@@ -220,6 +283,7 @@ Checklist inicial do projeto **mec-notes**.
             note={activeNote}
             onSaveNote={handleSaveNote}
             onTogglePin={handleTogglePin}
+            onOpenSticky={handleOpenSticky}
             autoSaveInterval={settings?.auto_save_interval ?? 500}
           />
         )}
