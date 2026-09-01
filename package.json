@@ -10,6 +10,9 @@
     "tauri": "tauri",
     "build:x64": "tauri build --target x86_64-pc-windows-msvc",
     "build:x86": "tauri build --target i686-pc-windows-msvc",
+    "build:linux-x64": "tauri build --target x86_64-unknown-linux-gnu",
+    "build:linux-arm64": "tauri build --target aarch64-unknown-linux-gnu",
+    "build:linux": "tauri build",
     "build:all": "npm run build:x64 && npm run build:x86"
   },
   "dependencies": {
