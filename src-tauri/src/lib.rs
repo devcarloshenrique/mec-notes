@@ -63,7 +63,11 @@ pub mod commands {
             let screen_height = screen_size.height as f64 / scale_factor;
 
             let margin = 24.0;
-            let taskbar_margin = 48.0; // Margem para barra de tarefas do Windows
+            let taskbar_margin = if cfg!(target_os = "windows") {
+                48.0 // Margem para barra de tarefas do Windows
+            } else {
+                32.0 // Margem para painel/dock do Linux (GNOME/KDE)
+            };
             let x = (screen_width - width - margin).max(0.0);
             let y = (screen_height - height - taskbar_margin).max(0.0);
 
