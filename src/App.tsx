@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import { WindowTitlebar } from "./components/WindowTitlebar";
 import { NotesSidebar } from "./components/NotesSidebar";
 import { MarkdownEditor } from "./components/MarkdownEditor";
@@ -121,6 +122,89 @@ Checklist inicial do projeto **mec-notes**.
   useEffect(() => {
     loadInitialData();
   }, [loadInitialData]);
+
+  // Sincronização inter-janelas em tempo real via Tauri Event Bus
+  useEffect(() => {
+    let unlistenUpdated: (() => void) | null = null;
+    let unlistenDeleted: (() => void) | null = null;
+    let unlistenCleared: (() => void) | null = null;
+    let isDisposed = false;
+
+    const setupEventListeners = async () => {
+      try {
+        const uUpdated = await listen<Note>("note-updated", (event) => {
+          if (isDisposed) return;
+          const updatedNote = event.payload;
+          if (!updatedNote || !updatedNote.id) return;
+
+          setNotes((prev) => {
+            const exists = prev.some((n) => n.id === updatedNote.id);
+            const next = exists
+              ? prev.map((n) => (n.id === updatedNote.id ? updatedNote : n))
+              : [updatedNote, ...prev];
+
+            return next.sort((a, b) => {
+              if (a.is_pinned !== b.is_pinned) {
+                return a.is_pinned ? -1 : 1;
+              }
+              return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+            });
+          });
+
+          setActiveNote((currentActive) => {
+            if (currentActive && currentActive.id === updatedNote.id) {
+              return updatedNote;
+            }
+            return currentActive;
+          });
+        });
+
+        const uDeleted = await listen<string>("note-deleted", (event) => {
+          if (isDisposed) return;
+          const deletedId = event.payload;
+          if (!deletedId) return;
+
+          setNotes((prev) => {
+            const next = prev.filter((n) => n.id !== deletedId);
+            setActiveNote((currentActive) => {
+              if (currentActive && currentActive.id === deletedId) {
+                return next.length > 0 ? next[0] : null;
+              }
+              return currentActive;
+            });
+            return next;
+          });
+        });
+
+        const uCleared = await listen<void>("notes-cleared", () => {
+          if (isDisposed) return;
+          setNotes([]);
+          setActiveNote(null);
+        });
+
+        if (isDisposed) {
+          uUpdated();
+          uDeleted();
+          uCleared();
+        } else {
+          unlistenUpdated = uUpdated;
+          unlistenDeleted = uDeleted;
+          unlistenCleared = uCleared;
+        }
+      } catch (err) {
+        console.error("Erro ao configurar listeners de sincronização no MainApp:", err);
+      }
+    };
+
+    setupEventListeners();
+
+    return () => {
+      isDisposed = true;
+      if (unlistenUpdated) unlistenUpdated();
+      if (unlistenDeleted) unlistenDeleted();
+      if (unlistenCleared) unlistenCleared();
+    };
+  }, []);
 
   // Alternância entre Modo Flutuante e Modo Janela
   const handleToggleMode = async () => {
