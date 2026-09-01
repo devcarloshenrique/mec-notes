@@ -49,7 +49,7 @@ pub mod commands {
         window.set_resizable(true).map_err(|e| e.to_string())?;
         window.set_skip_taskbar(false).map_err(|e| e.to_string())?;
 
-        let width = 380.0;
+        let width = 800.0;
         let height = 520.0;
         window
             .set_size(Size::Logical(LogicalSize { width, height }))

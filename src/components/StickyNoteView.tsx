@@ -316,25 +316,6 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
     }
   };
 
-  const handleMouseDown = async (e: React.MouseEvent) => {
-    if (e.button === 0) {
-      const target = e.target as HTMLElement;
-      if (
-        target.tagName !== "BUTTON" &&
-        target.tagName !== "INPUT" &&
-        !target.closest("button") &&
-        !target.closest(".no-drag") &&
-        target.getAttribute("role") !== "button"
-      ) {
-        try {
-          await getCurrentWindow().startDragging();
-        } catch (err) {
-          console.error("Erro ao iniciar arrasto:", err);
-        }
-      }
-    }
-  };
-
   const handleBlur = () => {
     if (!note) return;
     if (debounceTimerRef.current) {
@@ -352,10 +333,9 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
 
   return (
     <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-[#141415] text-foreground select-none ring-1 ring-white/[0.06] shadow-2xl">
-      {/* Barra Superior / Header Neutro Minimalista com Região de Arrasto Completa */}
+      {/* Barra Superior / Header Neutro Minimalista com Região de Arrasto Nativa Fluida */}
       <header
         data-tauri-drag-region
-        onMouseDown={handleMouseDown}
         className="flex h-8 shrink-0 select-none items-center justify-between border-b border-white/[0.06] bg-[#0d0d0e] px-2 cursor-move"
       >
         {/* Esquerda: Botão de Adicionar Nova Nota */}
@@ -391,9 +371,10 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
             />
           ) : (
             <span
+              data-tauri-drag-region
               onDoubleClick={() => setIsEditingTitle(true)}
               title="Duplo-clique para renomear"
-              className="text-[11px] font-medium text-foreground/70 truncate text-center pointer-events-none select-none max-w-[200px]"
+              className="text-[11px] font-medium text-foreground/70 truncate text-center select-none max-w-[200px] cursor-move"
             >
               {title || "Nota Adesiva"}
             </span>
