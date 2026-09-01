@@ -14,14 +14,14 @@
       {
         "title": "Mec Notes",
         "label": "main",
-        "width": 380,
+        "width": 800,
         "height": 520,
         "resizable": true,
         "decorations": false,
         "transparent": false,
         "alwaysOnTop": true,
         "skipTaskbar": false,
-        "visible": true,
+        "visible": false,
         "shadow": true
       }
     ],
