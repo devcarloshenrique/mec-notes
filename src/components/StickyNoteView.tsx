@@ -534,7 +534,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
       </header>
 
       {/* Conteúdo da Nota Adesiva */}
-      <main className="flex-1 overflow-y-auto bg-[#141415]">
+      <main className="flex-1 overflow-hidden bg-[#141415]">
         {tab === "edit" ? (
           <textarea
             value={content}
@@ -542,11 +542,11 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
             onBlur={handleBlur}
             spellCheck={false}
             placeholder="Digite suas anotações aqui em Markdown…"
-            className="h-full w-full resize-none bg-transparent p-3 font-mono text-[12px] leading-relaxed text-foreground/90 outline-none placeholder:text-muted-foreground/40"
+            className="h-full w-full resize-none overflow-y-auto bg-transparent p-3 font-mono text-[12px] leading-relaxed text-foreground/90 outline-none placeholder:text-muted-foreground/40"
             autoFocus
           />
         ) : (
-          <div className="p-3 text-[12px]">
+          <div className="h-full overflow-y-auto p-3 text-[12px]">
             <MarkdownPreview source={content} />
           </div>
         )}
