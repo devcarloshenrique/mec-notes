@@ -670,15 +670,6 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("erro ao construir aplicação Tauri")
-        .run(|app_handle, event| {
-            if let tauri::RunEvent::ExitRequested { .. } = event {
-                // Ao fechar a aplicação, limpa o estado is_open de todas as sticky notes no SQLite para evitar restaurações "fantasma" que causam travamentos
-                if let Some(state) = app_handle.try_state::<DbState>() {
-                    if let Ok(conn) = state.conn.lock() {
-                        let _ = conn.execute("UPDATE sticky_windows SET is_open = 0", []);
-                    }
-                }
-            }
-        });
+        .run(|_app_handle, _event| {});
 }
 

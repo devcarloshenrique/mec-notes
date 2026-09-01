@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { X, Eye, Pencil, Pin } from "lucide-react";
+import { X, Eye, Pencil, Plus, MoreHorizontal, Copy, Check } from "lucide-react";
 import { dbService, Note } from "../services/db";
 import { MarkdownPreview } from "./MarkdownPreview";
 
@@ -14,11 +14,16 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
   const [content, setContent] = useState("");
   const [tab, setTab] = useState<"edit" | "preview">("edit");
   const [isSaving, setIsSaving] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [hasCopied, setHasCopied] = useState(false);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialMountRef = useRef<boolean>(true);
   const geometryTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isClosingRef = useRef<boolean>(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
 
   // Carregar dados da nota do SQLite com fallback imediato e timeout de segurança
   useEffect(() => {
@@ -91,6 +96,30 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
     };
   }, [noteId]);
 
+  // Foco automático ao entrar no modo de edição de título
+  useEffect(() => {
+    if (isEditingTitle && titleInputRef.current) {
+      titleInputRef.current.focus();
+      titleInputRef.current.select();
+    }
+  }, [isEditingTitle]);
+
+  // Fechar dropdown de menu ao clicar fora
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
+      }
+    };
+
+    if (isMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [isMenuOpen]);
+
   // Função de salvar no SQLite
   const handleSave = useCallback(
     async (updatedTitle: string, updatedContent: string) => {
@@ -100,7 +129,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
         const now = new Date().toISOString();
         const updated: Note = {
           id: noteId,
-          title: updatedTitle,
+          title: updatedTitle.trim() || "Nota Adesiva",
           content: updatedContent,
           tags: note?.tags || [],
           is_pinned: note?.is_pinned || false,
@@ -251,6 +280,42 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
     }
   };
 
+  // Criar uma nova nota adesiva
+  const handleCreateNewNote = async () => {
+    try {
+      const newId = typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : "sticky-" + Date.now().toString(36) + Math.random().toString(36).substring(2, 6);
+      
+      const newNote: Note = {
+        id: newId,
+        title: "Nova Nota",
+        content: "",
+        tags: [],
+        is_pinned: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      await dbService.saveNote(newNote);
+      await dbService.openStickyNote(newId);
+    } catch (err) {
+      console.error("Erro ao criar nova nota adesiva:", err);
+    }
+  };
+
+  // Copiar conteúdo da nota
+  const handleCopyContent = async () => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setHasCopied(true);
+      setTimeout(() => setHasCopied(false), 2000);
+      setIsMenuOpen(false);
+    } catch (err) {
+      console.error("Erro ao copiar conteúdo:", err);
+    }
+  };
+
   const handleMouseDown = async (e: React.MouseEvent) => {
     if (e.button === 0) {
       const target = e.target as HTMLElement;
@@ -258,6 +323,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
         target.tagName !== "BUTTON" &&
         target.tagName !== "INPUT" &&
         !target.closest("button") &&
+        !target.closest(".no-drag") &&
         target.getAttribute("role") !== "button"
       ) {
         try {
@@ -279,69 +345,150 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
     }
   };
 
+  const handleTitleSubmit = () => {
+    setIsEditingTitle(false);
+    handleBlur();
+  };
+
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-card text-foreground select-none border border-border/80 shadow-2xl">
-      {/* Barra Superior / Header Neutro Minimalista com Região de Arrasto */}
+    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-[#141415] text-foreground select-none ring-1 ring-white/[0.06] shadow-2xl">
+      {/* Barra Superior / Header Neutro Minimalista com Região de Arrasto Completa */}
       <header
         data-tauri-drag-region
         onMouseDown={handleMouseDown}
-        className="flex h-8 shrink-0 select-none items-center justify-between border-b border-border bg-sidebar px-2.5 cursor-move"
+        className="flex h-8 shrink-0 select-none items-center justify-between border-b border-white/[0.06] bg-[#0d0d0e] px-2 cursor-move"
       >
-        {/* Título inline / Arrastável */}
-        <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-2" data-tauri-drag-region>
-          <Pin className="size-3 shrink-0 text-muted-foreground/80 fill-muted-foreground/30 pointer-events-none" />
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={handleBlur}
-            placeholder="Nota Adesiva"
-            className="w-full bg-transparent text-[12px] font-medium text-foreground outline-none placeholder:text-muted-foreground truncate cursor-text"
-          />
+        {/* Esquerda: Botão de Adicionar Nova Nota */}
+        <button
+          onClick={handleCreateNewNote}
+          aria-label="Nova nota adesiva"
+          title="Nova nota adesiva"
+          className="grid size-6 shrink-0 place-items-center rounded text-muted-foreground hover:bg-white/[0.08] hover:text-foreground transition-colors cursor-pointer"
+        >
+          <Plus className="size-3.5" />
+        </button>
+
+        {/* Centro: Título da Nota / Área de Arraste Ampla */}
+        <div
+          data-tauri-drag-region
+          className="flex-1 min-w-0 px-2 flex items-center justify-center cursor-move"
+        >
+          {isEditingTitle ? (
+            <input
+              ref={titleInputRef}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={handleTitleSubmit}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleTitleSubmit();
+                if (e.key === "Escape") {
+                  setTitle(note?.title || "Nota Adesiva");
+                  setIsEditingTitle(false);
+                }
+              }}
+              placeholder="Nota Adesiva"
+              className="no-drag w-full max-w-[180px] bg-white/[0.06] px-1.5 py-0.5 rounded text-center text-[11px] font-medium text-foreground outline-none ring-1 ring-white/20 truncate cursor-text"
+            />
+          ) : (
+            <span
+              onDoubleClick={() => setIsEditingTitle(true)}
+              title="Duplo-clique para renomear"
+              className="text-[11px] font-medium text-foreground/70 truncate text-center pointer-events-none select-none max-w-[200px]"
+            >
+              {title || "Nota Adesiva"}
+            </span>
+          )}
         </div>
 
-        {/* Ações e Controles */}
-        <div className="flex items-center gap-1 cursor-default shrink-0">
+        {/* Direita: Menu de Elipse + Botão Fechar */}
+        <div className="flex items-center gap-0.5 shrink-0 cursor-default">
           {/* Indicador sutil de salvamento */}
           {isSaving && (
-            <span className="text-[10px] text-muted-foreground mr-1 animate-pulse">
+            <span className="text-[9px] text-muted-foreground/60 mr-1 animate-pulse pointer-events-none">
               Salvando...
             </span>
           )}
 
-          {/* Toggle Edição / Preview */}
-          <div className="flex items-center rounded-md border border-border/60 bg-background/50 p-0.5">
+          {/* Botão de Elipse (Menu de Opções) */}
+          <div className="relative" ref={menuRef}>
             <button
-              onClick={() => setTab("edit")}
-              className={`flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
-                tab === "edit"
-                  ? "bg-accent text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
+              onClick={() => setIsMenuOpen((prev) => !prev)}
+              aria-label="Mais opções"
+              title="Mais opções"
+              className={`grid size-6 place-items-center rounded text-muted-foreground transition-colors cursor-pointer ${
+                isMenuOpen
+                  ? "bg-white/[0.12] text-foreground"
+                  : "hover:bg-white/[0.08] hover:text-foreground"
               }`}
-              title="Modo Edição"
             >
-              <Pencil className="size-2.5" />
+              <MoreHorizontal className="size-3.5" />
             </button>
-            <button
-              onClick={() => setTab("preview")}
-              className={`flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[10px] font-medium transition-colors ${
-                tab === "preview"
-                  ? "bg-accent text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              title="Modo Preview"
-            >
-              <Eye className="size-2.5" />
-            </button>
-          </div>
 
-          <div className="mx-0.5 h-3.5 w-px bg-border/60" aria-hidden />
+            {/* Dropdown Menu Flutuante */}
+            {isMenuOpen && (
+              <div className="no-drag absolute right-0 top-full mt-1 w-44 rounded-lg border border-white/[0.08] bg-[#1a1a1c]/95 backdrop-blur-md p-1 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-100">
+                {/* Opção: Renomear */}
+                <button
+                  onClick={() => {
+                    setIsMenuOpen(false);
+                    setIsEditingTitle(true);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-foreground/80 hover:bg-white/[0.08] hover:text-foreground transition-colors text-left"
+                >
+                  <Pencil className="size-3 text-muted-foreground" />
+                  <span>Renomear</span>
+                </button>
+
+                {/* Opção: Alternar Modo Edição / Preview */}
+                <button
+                  onClick={() => {
+                    setTab((prev) => (prev === "edit" ? "preview" : "edit"));
+                    setIsMenuOpen(false);
+                  }}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-foreground/80 hover:bg-white/[0.08] hover:text-foreground transition-colors text-left"
+                >
+                  {tab === "edit" ? (
+                    <>
+                      <Eye className="size-3 text-muted-foreground" />
+                      <span>Visualizar Markdown</span>
+                    </>
+                  ) : (
+                    <>
+                      <Pencil className="size-3 text-muted-foreground" />
+                      <span>Editar Conteúdo</span>
+                    </>
+                  )}
+                </button>
+
+                <div className="my-1 h-px bg-white/[0.06]" />
+
+                {/* Opção: Copiar Conteúdo */}
+                <button
+                  onClick={handleCopyContent}
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[11px] text-foreground/80 hover:bg-white/[0.08] hover:text-foreground transition-colors text-left"
+                >
+                  {hasCopied ? (
+                    <>
+                      <Check className="size-3 text-emerald-400" />
+                      <span className="text-emerald-400">Copiado!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="size-3 text-muted-foreground" />
+                      <span>Copiar conteúdo</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
 
           {/* Botão Fechar */}
           <button
             onClick={handleClose}
             aria-label="Fechar nota adesiva"
             title="Fechar nota adesiva"
-            className="grid size-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/20 hover:text-destructive"
+            className="grid size-6 place-items-center rounded text-muted-foreground hover:bg-destructive/20 hover:text-destructive transition-colors cursor-pointer"
           >
             <X className="size-3.5" />
           </button>
@@ -349,7 +496,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
       </header>
 
       {/* Conteúdo da Nota Adesiva */}
-      <main className="flex-1 overflow-y-auto bg-card">
+      <main className="flex-1 overflow-y-auto bg-[#141415]">
         {tab === "edit" ? (
           <textarea
             value={content}
@@ -357,7 +504,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
             onBlur={handleBlur}
             spellCheck={false}
             placeholder="Digite suas anotações aqui em Markdown…"
-            className="h-full w-full resize-none bg-transparent p-3 font-mono text-[12px] leading-relaxed text-foreground/90 outline-none placeholder:text-muted-foreground"
+            className="h-full w-full resize-none bg-transparent p-3 font-mono text-[12px] leading-relaxed text-foreground/90 outline-none placeholder:text-muted-foreground/40"
             autoFocus
           />
         ) : (
