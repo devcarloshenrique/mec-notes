@@ -23,6 +23,17 @@ pub struct AppSettings {
     pub auto_save_interval: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct StickyWindow {
+    pub note_id: String,
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub is_open: bool,
+    pub updated_at: String,
+}
+
 pub struct DbState {
     pub conn: Mutex<Connection>,
     pub db_path: PathBuf,
@@ -91,6 +102,10 @@ pub fn init_db(db_path: &Path) -> Result<Connection, String> {
             content TEXT NOT NULL,
             tags TEXT NOT NULL DEFAULT '[]',
             is_pinned INTEGER NOT NULL DEFAULT 0,
+            window_x REAL,
+            window_y REAL,
+            window_w REAL,
+            window_h REAL,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL
         );
@@ -110,6 +125,23 @@ pub fn init_db(db_path: &Path) -> Result<Connection, String> {
         [],
     )
     .map_err(|e| format!("Falha ao criar tabela de configurações: {}", e))?;
+
+    // Tabela sticky_windows
+    conn.execute(
+        "
+        CREATE TABLE IF NOT EXISTS sticky_windows (
+            note_id TEXT PRIMARY KEY,
+            x REAL NOT NULL DEFAULT 100.0,
+            y REAL NOT NULL DEFAULT 100.0,
+            width REAL NOT NULL DEFAULT 280.0,
+            height REAL NOT NULL DEFAULT 280.0,
+            is_open INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT NOT NULL
+        );
+        ",
+        [],
+    )
+    .map_err(|e| format!("Falha ao criar tabela de sticky_windows: {}", e))?;
 
     // Inserir configurações padrão se não existirem
     let default_settings = [
@@ -228,7 +260,119 @@ pub fn db_save_note(conn: &Connection, note: Note) -> Result<Note, String> {
     Ok(note)
 }
 
+// ==========================================
+// Funções de Manipulação de Sticky Windows
+// ==========================================
+
+pub fn db_get_sticky_window(
+    conn: &Connection,
+    note_id: &str,
+) -> Result<Option<StickyWindow>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT note_id, x, y, width, height, is_open, updated_at 
+             FROM sticky_windows 
+             WHERE note_id = ?1",
+        )
+        .map_err(|e| format!("Erro ao preparar busca de sticky window: {}", e))?;
+
+    let win = stmt
+        .query_row(params![note_id], |row| {
+            let is_open_int: i64 = row.get(5)?;
+            Ok(StickyWindow {
+                note_id: row.get(0)?,
+                x: row.get(1)?,
+                y: row.get(2)?,
+                width: row.get(3)?,
+                height: row.get(4)?,
+                is_open: is_open_int != 0,
+                updated_at: row.get(6)?,
+            })
+        })
+        .optional()
+        .map_err(|e| format!("Erro ao buscar sticky window: {}", e))?;
+
+    Ok(win)
+}
+
+pub fn db_save_sticky_geometry(
+    conn: &Connection,
+    note_id: &str,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    let now = "now".to_string();
+    conn.execute(
+        "
+        INSERT INTO sticky_windows (note_id, x, y, width, height, is_open, updated_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, 1, ?6)
+        ON CONFLICT(note_id) DO UPDATE SET
+            x = excluded.x,
+            y = excluded.y,
+            width = excluded.width,
+            height = excluded.height,
+            is_open = 1,
+            updated_at = excluded.updated_at;
+        ",
+        params![note_id, x, y, width, height, now],
+    )
+    .map_err(|e| format!("Erro ao salvar geometria da sticky window: {}", e))?;
+
+    Ok(())
+}
+
+pub fn db_set_sticky_open(
+    conn: &Connection,
+    note_id: &str,
+    is_open: bool,
+) -> Result<(), String> {
+    let is_open_int = if is_open { 1 } else { 0 };
+    conn.execute(
+        "UPDATE sticky_windows SET is_open = ?1 WHERE note_id = ?2",
+        params![is_open_int, note_id],
+    )
+    .map_err(|e| format!("Erro ao atualizar status da sticky window: {}", e))?;
+
+    Ok(())
+}
+
+pub fn db_get_open_sticky_windows(conn: &Connection) -> Result<Vec<StickyWindow>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT note_id, x, y, width, height, is_open, updated_at 
+             FROM sticky_windows 
+             WHERE is_open = 1 
+             ORDER BY updated_at ASC",
+        )
+        .map_err(|e| format!("Erro ao consultar janelas sticky abertas: {}", e))?;
+
+    let rows = stmt
+        .query_map([], |row| {
+            let is_open_int: i64 = row.get(5)?;
+            Ok(StickyWindow {
+                note_id: row.get(0)?,
+                x: row.get(1)?,
+                y: row.get(2)?,
+                width: row.get(3)?,
+                height: row.get(4)?,
+                is_open: is_open_int != 0,
+                updated_at: row.get(6)?,
+            })
+        })
+        .map_err(|e| format!("Erro ao iterar sticky windows: {}", e))?;
+
+    let mut list = Vec::new();
+    for r in rows {
+        list.push(r.map_err(|e| format!("Erro ao mapear sticky window: {}", e))?);
+    }
+
+    Ok(list)
+}
+
 pub fn db_delete_note(conn: &Connection, id: &str) -> Result<bool, String> {
+    let _ = conn.execute("DELETE FROM sticky_windows WHERE note_id = ?1", params![id]);
     let rows_affected = conn
         .execute("DELETE FROM notes WHERE id = ?1", params![id])
         .map_err(|e| format!("Erro ao excluir nota: {}", e))?;
@@ -237,6 +381,7 @@ pub fn db_delete_note(conn: &Connection, id: &str) -> Result<bool, String> {
 }
 
 pub fn db_clear_all_notes(conn: &Connection) -> Result<usize, String> {
+    let _ = conn.execute("DELETE FROM sticky_windows", []);
     let rows_affected = conn
         .execute("DELETE FROM notes", [])
         .map_err(|e| format!("Erro ao limpar todas as notas: {}", e))?;

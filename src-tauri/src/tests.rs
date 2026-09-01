@@ -4,8 +4,9 @@ mod tests {
     use tauri_plugin_global_shortcut::Shortcut;
     use crate::db::{
         db_clear_all_notes, db_delete_note, db_export_to, db_get_note_by_id, db_get_notes,
-        db_get_settings, db_import_from, db_save_note, db_update_setting, get_default_db_path,
-        init_db, DbState, Note,
+        db_get_open_sticky_windows, db_get_settings, db_get_sticky_window, db_import_from,
+        db_save_note, db_save_sticky_geometry, db_set_sticky_open, db_update_setting,
+        get_default_db_path, init_db, DbState, Note,
     };
 
     #[test]
@@ -84,7 +85,29 @@ mod tests {
         assert_eq!(found_updated.title, "Primeira Nota Atualizada");
         assert!(found_updated.is_pinned);
 
-        // 6. Deletar nota
+        // 6. Sticky windows operations
+        db_save_sticky_geometry(&conn, "note-1", 120.0, 150.0, 300.0, 400.0)
+            .expect("Deveria salvar geometria da sticky window");
+
+        let sticky = db_get_sticky_window(&conn, "note-1")
+            .expect("Deveria buscar sticky window")
+            .expect("Deveria encontrar sticky window");
+        assert_eq!(sticky.note_id, "note-1");
+        assert_eq!(sticky.x, 120.0);
+        assert_eq!(sticky.y, 150.0);
+        assert_eq!(sticky.width, 300.0);
+        assert_eq!(sticky.height, 400.0);
+        assert!(sticky.is_open);
+
+        let open_windows = db_get_open_sticky_windows(&conn).expect("Deveria listar abertas");
+        assert_eq!(open_windows.len(), 1);
+        assert_eq!(open_windows[0].note_id, "note-1");
+
+        db_set_sticky_open(&conn, "note-1", false).expect("Deveria fechar sticky");
+        let open_windows_after = db_get_open_sticky_windows(&conn).unwrap();
+        assert_eq!(open_windows_after.len(), 0);
+
+        // 7. Deletar nota (deve remover sticky associada)
         let deleted = db_delete_note(&conn, "note-2").expect("Deveria deletar nota");
         assert!(deleted);
 
@@ -92,7 +115,7 @@ mod tests {
         assert_eq!(notes_after_delete.len(), 1);
         assert_eq!(notes_after_delete[0].id, "note-1");
 
-        // 7. Limpar todas as notas
+        // 8. Limpar todas as notas
         let cleared_count = db_clear_all_notes(&conn).expect("Deveria limpar todas as notas");
         assert_eq!(cleared_count, 1);
 
@@ -191,3 +214,4 @@ mod tests {
         let _ = fs::remove_dir_all(&temp_dir);
     }
 }
+
