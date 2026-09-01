@@ -318,4 +318,3 @@ export const NotesSidebar: React.FC<Props> = ({
     </aside>
   );
 };
-

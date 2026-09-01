@@ -122,6 +122,16 @@ export const MarkdownEditor: React.FC<Props> = ({
     <div className="flex flex-1 flex-col overflow-hidden">
       {/* Barra de Título da Nota com Toggle de Modo e Pin */}
       <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+        {onOpenSticky && (
+          <button
+            onClick={() => onOpenSticky(note)}
+            aria-label="Fixar na área de trabalho"
+            title="Fixar na área de trabalho"
+            className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <StickyNote className="size-3.5" />
+          </button>
+        )}
         {onTogglePin && (
           <button
             onClick={() => onTogglePin(note)}
@@ -138,16 +148,6 @@ export const MarkdownEditor: React.FC<Props> = ({
                 note.is_pinned ? "fill-primary text-primary" : ""
               }`}
             />
-          </button>
-        )}
-        {onOpenSticky && (
-          <button
-            onClick={() => onOpenSticky(note)}
-            aria-label="Fixar como Nota Adesiva na área de trabalho"
-            title="Fixar como Nota Adesiva na área de trabalho"
-            className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          >
-            <StickyNote className="size-3.5" />
           </button>
         )}
         <input

@@ -118,7 +118,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
     [noteId, note]
   );
 
-  // Auto-save com debounce de 400ms conforme requisito
+  // Auto-save com debounce de 400ms
   useEffect(() => {
     if (isInitialMountRef.current) {
       isInitialMountRef.current = false;
@@ -288,8 +288,8 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
         className="flex h-8 shrink-0 select-none items-center justify-between border-b border-border bg-sidebar px-2.5 cursor-move"
       >
         {/* Título inline / Arrastável */}
-        <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-2">
-          <Pin className="size-3 shrink-0 text-muted-foreground/80 fill-muted-foreground/30" />
+        <div className="flex items-center gap-1.5 min-w-0 flex-1 mr-2" data-tauri-drag-region>
+          <Pin className="size-3 shrink-0 text-muted-foreground/80 fill-muted-foreground/30 pointer-events-none" />
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}

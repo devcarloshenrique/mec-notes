@@ -19,6 +19,9 @@ pub mod commands {
     // Comandos de Janela e Atalhos
     // ==========================================
 
+    use std::sync::Mutex as StdMutex;
+    static WINDOW_MODE_LOCK: StdMutex<()> = StdMutex::new(());
+
     #[tauri::command]
     pub fn toggle_window_visibility(app: AppHandle) -> Result<bool, String> {
         if let Some(window) = app.get_webview_window("main") {
@@ -38,6 +41,8 @@ pub mod commands {
 
     #[tauri::command]
     pub fn set_floating_mode(window: WebviewWindow) -> Result<(), String> {
+        let _guard = WINDOW_MODE_LOCK.lock().map_err(|e| e.to_string())?;
+
         // Configurações para modo flutuante: sem decorações, sempre no topo, canto inferior direito
         window.set_decorations(false).map_err(|e| e.to_string())?;
         window.set_always_on_top(true).map_err(|e| e.to_string())?;
@@ -80,6 +85,8 @@ pub mod commands {
 
     #[tauri::command]
     pub fn set_window_mode(window: WebviewWindow) -> Result<(), String> {
+        let _guard = WINDOW_MODE_LOCK.lock().map_err(|e| e.to_string())?;
+
         // Configurações para modo janela: sem decorações nativas (usa custom titlebar), centralizado e redimensionável
         window.set_decorations(false).map_err(|e| e.to_string())?;
         window.set_always_on_top(false).map_err(|e| e.to_string())?;
@@ -165,7 +172,7 @@ pub mod commands {
             .skip_taskbar(true)
             .always_on_top(false)
             .transparent(false)
-            .background_color(tauri::window::Color(15, 15, 16, 255))
+            .background_color(tauri::window::Color(20, 20, 21, 255))
             .resizable(true)
             .shadow(true);
 
@@ -674,3 +681,4 @@ pub fn run() {
             }
         });
 }
+

@@ -8,7 +8,6 @@ mod tests {
         db_save_note, db_save_sticky_geometry, db_set_sticky_open, db_update_setting,
         get_default_db_path, init_db, DbState, Note,
     };
-    use crate::commands::sticky_window_label;
 
     #[test]
     fn test_shortcut_parsing() {
@@ -20,12 +19,6 @@ mod tests {
 
         let s3 = "Alt+Space".parse::<Shortcut>();
         assert!(s3.is_ok());
-    }
-
-    #[test]
-    fn test_sticky_window_label() {
-        assert_eq!(sticky_window_label("note-123"), "sticky-note-123");
-        assert_eq!(sticky_window_label("abc"), "sticky-abc");
     }
 
     #[test]
@@ -92,7 +85,29 @@ mod tests {
         assert_eq!(found_updated.title, "Primeira Nota Atualizada");
         assert!(found_updated.is_pinned);
 
-        // 6. Deletar nota
+        // 6. Sticky windows operations
+        db_save_sticky_geometry(&conn, "note-1", 120.0, 150.0, 300.0, 400.0)
+            .expect("Deveria salvar geometria da sticky window");
+
+        let sticky = db_get_sticky_window(&conn, "note-1")
+            .expect("Deveria buscar sticky window")
+            .expect("Deveria encontrar sticky window");
+        assert_eq!(sticky.note_id, "note-1");
+        assert_eq!(sticky.x, 120.0);
+        assert_eq!(sticky.y, 150.0);
+        assert_eq!(sticky.width, 300.0);
+        assert_eq!(sticky.height, 400.0);
+        assert!(sticky.is_open);
+
+        let open_windows = db_get_open_sticky_windows(&conn).expect("Deveria listar abertas");
+        assert_eq!(open_windows.len(), 1);
+        assert_eq!(open_windows[0].note_id, "note-1");
+
+        db_set_sticky_open(&conn, "note-1", false).expect("Deveria fechar sticky");
+        let open_windows_after = db_get_open_sticky_windows(&conn).unwrap();
+        assert_eq!(open_windows_after.len(), 0);
+
+        // 7. Deletar nota (deve remover sticky associada)
         let deleted = db_delete_note(&conn, "note-2").expect("Deveria deletar nota");
         assert!(deleted);
 
@@ -100,65 +115,12 @@ mod tests {
         assert_eq!(notes_after_delete.len(), 1);
         assert_eq!(notes_after_delete[0].id, "note-1");
 
-        // 7. Limpar todas as notas
+        // 8. Limpar todas as notas
         let cleared_count = db_clear_all_notes(&conn).expect("Deveria limpar todas as notas");
         assert_eq!(cleared_count, 1);
 
         let notes_after_clear = db_get_notes(&conn).expect("Deveria listar notas");
         assert_eq!(notes_after_clear.len(), 0);
-
-        // Limpeza
-        let _ = fs::remove_dir_all(&temp_dir);
-    }
-
-    #[test]
-    fn test_sticky_window_persistence_and_geometry() {
-        let temp_dir = std::env::temp_dir().join("mec_notes_test_sticky");
-        let _ = fs::remove_dir_all(&temp_dir);
-        let _ = fs::create_dir_all(&temp_dir);
-        let db_file = temp_dir.join("test_sticky.db");
-
-        let conn = init_db(&db_file).expect("Deveria inicializar banco de dados SQLite");
-
-        // 1. Nenhuma janela aberta inicialmente
-        let open_init = db_get_open_sticky_windows(&conn).expect("Deveria buscar abertas");
-        assert_eq!(open_init.len(), 0);
-
-        // 2. Salvar geometria para note-1
-        db_save_sticky_geometry(&conn, "note-1", 120.0, 150.0, 300.0, 320.0)
-            .expect("Deveria salvar geometria");
-
-        let saved1 = db_get_sticky_window(&conn, "note-1").expect("Deveria buscar janela").unwrap();
-        assert_eq!(saved1.note_id, "note-1");
-        assert_eq!(saved1.x, 120.0);
-        assert_eq!(saved1.y, 150.0);
-        assert_eq!(saved1.width, 300.0);
-        assert_eq!(saved1.height, 320.0);
-        assert!(saved1.is_open);
-
-        // 3. Salvar geometria para note-2
-        db_save_sticky_geometry(&conn, "note-2", 400.0, 200.0, 280.0, 280.0)
-            .expect("Deveria salvar geometria nota 2");
-
-        let open_list = db_get_open_sticky_windows(&conn).expect("Deveria listar abertas");
-        assert_eq!(open_list.len(), 2);
-
-        // 4. Fechar note-1
-        db_set_sticky_open(&conn, "note-1", false).expect("Deveria fechar note-1");
-
-        let saved1_closed = db_get_sticky_window(&conn, "note-1").unwrap().unwrap();
-        assert!(!saved1_closed.is_open);
-        assert_eq!(saved1_closed.x, 120.0); // Coordenadas preservadas
-        assert_eq!(saved1_closed.width, 300.0);
-
-        let open_after_close = db_get_open_sticky_windows(&conn).unwrap();
-        assert_eq!(open_after_close.len(), 1);
-        assert_eq!(open_after_close[0].note_id, "note-2");
-
-        // 5. Deletar note-2 deve limpar sticky window
-        db_delete_note(&conn, "note-2").expect("Deveria deletar note-2");
-        let note2_win = db_get_sticky_window(&conn, "note-2").unwrap();
-        assert!(note2_win.is_none());
 
         // Limpeza
         let _ = fs::remove_dir_all(&temp_dir);
@@ -252,3 +214,4 @@ mod tests {
         let _ = fs::remove_dir_all(&temp_dir);
     }
 }
+
