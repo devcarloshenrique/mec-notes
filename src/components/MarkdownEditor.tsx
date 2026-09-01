@@ -29,7 +29,7 @@ export const MarkdownEditor: React.FC<Props> = ({
   const isInitialMountRef = useRef<boolean>(true);
   const currentNoteIdRef = useRef<string | null>(null);
 
-  // Sincronizar estado local com a nota ativa
+  // Sincronizar estado local com a nota ativa (incluindo atualizações externas via updated_at)
   useEffect(() => {
     if (note) {
       currentNoteIdRef.current = note.id;
@@ -43,7 +43,7 @@ export const MarkdownEditor: React.FC<Props> = ({
       setContent("");
       if (onSaveStateChange) onSaveStateChange("saved");
     }
-  }, [note?.id]);
+  }, [note?.id, note?.updated_at]);
 
   // Função de salvamento
   const triggerSave = useCallback(

@@ -3,8 +3,8 @@ pub mod db;
 pub mod commands {
     use std::path::PathBuf;
     use tauri::{
-        AppHandle, LogicalSize, Manager, PhysicalPosition, Position, Size, State, WebviewUrl,
-        WebviewWindow, WebviewWindowBuilder,
+        AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Position, Size, State,
+        WebviewUrl, WebviewWindow, WebviewWindowBuilder,
     };
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
@@ -333,12 +333,14 @@ pub mod commands {
     }
 
     #[tauri::command]
-    pub fn save_note(state: State<'_, DbState>, note: Note) -> Result<Note, String> {
+    pub fn save_note(app: AppHandle, state: State<'_, DbState>, note: Note) -> Result<Note, String> {
         let conn = state
             .conn
             .lock()
             .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
-        db_save_note(&conn, note)
+        let saved = db_save_note(&conn, note)?;
+        let _ = app.emit("note-updated", &saved);
+        Ok(saved)
     }
 
     #[tauri::command]
@@ -357,7 +359,9 @@ pub mod commands {
             .conn
             .lock()
             .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
-        db_delete_note(&conn, &id)
+        let result = db_delete_note(&conn, &id)?;
+        let _ = app.emit("note-deleted", &id);
+        Ok(result)
     }
 
     #[tauri::command]
@@ -373,7 +377,9 @@ pub mod commands {
             .conn
             .lock()
             .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
-        db_clear_all_notes(&conn)
+        let count = db_clear_all_notes(&conn)?;
+        let _ = app.emit("notes-cleared", ());
+        Ok(count)
     }
 
     // ==========================================

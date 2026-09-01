@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { listen } from "@tauri-apps/api/event";
 import { X, Eye, Pencil, Plus, MoreHorizontal, Copy, Check } from "lucide-react";
 import { dbService, Note } from "../services/db";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -24,6 +25,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
   const isClosingRef = useRef<boolean>(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const lastSavedAtRef = useRef<string>("");
 
   // Carregar dados da nota do SQLite com fallback imediato e timeout de segurança
   useEffect(() => {
@@ -44,6 +46,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
             setNote(data);
             setTitle(data.title || "Nota Adesiva");
             setContent(data.content || "");
+            lastSavedAtRef.current = data.updated_at || "";
           } else {
             // Nota ainda não gravada ou criada dinamicamente
             const newNote: Note = {
@@ -61,6 +64,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
                 setNote(saved);
                 setTitle(saved.title);
                 setContent(saved.content);
+                lastSavedAtRef.current = saved.updated_at || "";
               }
             } catch {
               if (isMounted) {
@@ -120,6 +124,58 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
     };
   }, [isMenuOpen]);
 
+  // Sincronização inter-janelas em tempo real via Tauri Event Bus
+  useEffect(() => {
+    let unlistenUpdated: (() => void) | null = null;
+    let unlistenDeleted: (() => void) | null = null;
+    let isDisposed = false;
+
+    const setupEventListeners = async () => {
+      try {
+        const uUpdated = await listen<Note>("note-updated", (event) => {
+          if (isDisposed || isClosingRef.current) return;
+          const incoming = event.payload;
+          if (!incoming || incoming.id !== noteId) return;
+
+          // Se a alteração veio de outra janela (updated_at diferente do último salvo localmente)
+          if (incoming.updated_at !== lastSavedAtRef.current) {
+            lastSavedAtRef.current = incoming.updated_at;
+            setNote(incoming);
+            setTitle(incoming.title || "Nota Adesiva");
+            setContent(incoming.content || "");
+          }
+        });
+
+        const uDeleted = await listen<string>("note-deleted", (event) => {
+          if (isDisposed || isClosingRef.current) return;
+          const deletedId = event.payload;
+          if (deletedId === noteId) {
+            isClosingRef.current = true;
+            getCurrentWindow().close().catch(() => {});
+          }
+        });
+
+        if (isDisposed) {
+          uUpdated();
+          uDeleted();
+        } else {
+          unlistenUpdated = uUpdated;
+          unlistenDeleted = uDeleted;
+        }
+      } catch (err) {
+        console.error("Erro ao configurar listeners de sincronização no StickyNoteView:", err);
+      }
+    };
+
+    setupEventListeners();
+
+    return () => {
+      isDisposed = true;
+      if (unlistenUpdated) unlistenUpdated();
+      if (unlistenDeleted) unlistenDeleted();
+    };
+  }, [noteId]);
+
   // Função de salvar no SQLite
   const handleSave = useCallback(
     async (updatedTitle: string, updatedContent: string) => {
@@ -137,6 +193,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
           updated_at: now,
         };
         const saved = await dbService.saveNote(updated);
+        lastSavedAtRef.current = saved.updated_at;
         setNote(saved);
       } catch (err) {
         console.error("Erro ao salvar nota adesiva:", err);
