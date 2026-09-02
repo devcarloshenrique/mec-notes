@@ -8,51 +8,61 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ["Geist", "ui-sans-serif", "system-ui", "sans-serif"],
-        mono: ["Geist Mono", "ui-monospace", "monospace"],
+        sans: ["Inter", "Geist", "ui-sans-serif", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
+        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", "monospace"],
       },
       colors: {
-        background: "#0f0f10",
-        foreground: "#e5e5e5",
+        app: {
+          dark: '#121212',
+          sidebar: '#18181b', // zinc-900
+          editor: '#18181b',
+          border: '#27272a', // zinc-800
+          active: '#27272a', // zinc-800
+          text: '#e4e4e7', // zinc-200
+          muted: '#a1a1aa', // zinc-400
+          icon: '#a1a1aa', // zinc-400
+        },
+        background: "#121212",
+        foreground: "#e4e4e7",
         card: {
-          DEFAULT: "#141415",
-          foreground: "#e5e5e5",
+          DEFAULT: "#18181b",
+          foreground: "#e4e4e7",
         },
         popover: {
-          DEFAULT: "#141415",
-          foreground: "#e5e5e5",
+          DEFAULT: "#18181b",
+          foreground: "#e4e4e7",
         },
         primary: {
           DEFAULT: "#ffffff",
           foreground: "#0a0a0b",
         },
         secondary: {
-          DEFAULT: "#18181a",
-          foreground: "#e5e5e5",
+          DEFAULT: "#27272a",
+          foreground: "#e4e4e7",
         },
         muted: {
-          DEFAULT: "#18181a",
-          foreground: "#71717a",
+          DEFAULT: "#27272a",
+          foreground: "#a1a1aa",
         },
         accent: {
-          DEFAULT: "#1a1a1c",
-          foreground: "#e5e5e5",
+          DEFAULT: "#27272a",
+          foreground: "#e4e4e7",
         },
         destructive: {
           DEFAULT: "#dc2626",
           foreground: "#ffffff",
         },
-        border: "rgba(255, 255, 255, 0.06)",
-        input: "rgba(255, 255, 255, 0.08)",
+        border: "#27272a",
+        input: "#27272a",
         ring: "#ffffff",
         sidebar: {
-          DEFAULT: "#0a0a0b",
+          DEFAULT: "#18181b",
           foreground: "#a1a1aa",
           primary: "#ffffff",
           "primary-foreground": "#0a0a0b",
-          accent: "#18181a",
-          "accent-foreground": "#e5e5e5",
-          border: "rgba(255, 255, 255, 0.06)",
+          accent: "#27272a",
+          "accent-foreground": "#e4e4e7",
+          border: "#27272a",
           ring: "#ffffff",
         },
       },

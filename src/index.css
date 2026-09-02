@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -6,33 +8,33 @@
   :root,
   .dark {
     color-scheme: dark;
-    --background: #0f0f10;
-    --foreground: #e5e5e5;
-    --card: #141415;
-    --card-foreground: #e5e5e5;
-    --popover: #141415;
-    --popover-foreground: #e5e5e5;
+    --background: #121212;
+    --foreground: #e4e4e7;
+    --card: #18181b;
+    --card-foreground: #e4e4e7;
+    --popover: #18181b;
+    --popover-foreground: #e4e4e7;
     --primary: #ffffff;
     --primary-foreground: #0a0a0b;
-    --secondary: #18181a;
-    --secondary-foreground: #e5e5e5;
-    --muted: #18181a;
-    --muted-foreground: #71717a;
-    --accent: #1a1a1c;
-    --accent-foreground: #e5e5e5;
+    --secondary: #27272a;
+    --secondary-foreground: #e4e4e7;
+    --muted: #27272a;
+    --muted-foreground: #a1a1aa;
+    --accent: #27272a;
+    --accent-foreground: #e4e4e7;
     --destructive: #dc2626;
     --destructive-foreground: #ffffff;
-    --border: rgba(255, 255, 255, 0.06);
-    --input: rgba(255, 255, 255, 0.08);
+    --border: #27272a;
+    --input: #27272a;
     --ring: #ffffff;
     --radius: 0.625rem;
-    --sidebar: #0a0a0b;
+    --sidebar: #18181b;
     --sidebar-foreground: #a1a1aa;
     --sidebar-primary: #ffffff;
     --sidebar-primary-foreground: #0a0a0b;
-    --sidebar-accent: #18181a;
-    --sidebar-accent-foreground: #e5e5e5;
-    --sidebar-border: rgba(255, 255, 255, 0.06);
+    --sidebar-accent: #27272a;
+    --sidebar-accent-foreground: #e4e4e7;
+    --sidebar-border: #27272a;
     --sidebar-ring: #ffffff;
   }
 }
@@ -42,22 +44,22 @@ html, body, #root {
   width: 100%;
   margin: 0;
   padding: 0;
-  background-color: #141415;
-  color: #e5e5e5;
-  font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #121212;
+  color: #e4e4e7;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   user-select: none;
   overflow: hidden;
 }
 
-/* Custom Scrollbar - sutil, ultrafina e com auto-hide elegante */
+/* Custom Scrollbar - sutil, sem calha visível e com auto-hide para não criar faixas verticais indesejadas */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
 ::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -65,14 +67,34 @@ html, body, #root {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.15);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.3);
 }
 
 ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Reset explícito para textarea para evitar que o WebView2/Chromium desenhe barra vertical estática */
+textarea,
+.editor-textarea {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  resize: none !important;
+}
+
+textarea::-webkit-scrollbar,
+.editor-textarea::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  background: transparent !important;
+}
+
+.editor-textarea:focus {
+  outline: none;
 }
