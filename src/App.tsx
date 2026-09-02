@@ -455,8 +455,6 @@ Checklist inicial do projeto **mec-notes**.
           onCloseToTray={handleCloseToTray}
           onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
           isSidebarOpen={isSidebarOpen}
-          onTogglePin={handleTogglePin}
-          onOpenSticky={handleOpenSticky}
         />
 
         {loading ? (
