@@ -68,6 +68,20 @@ export const dbService = {
     return await invoke<boolean>("close_sticky_note", { noteId });
   },
 
+  async saveFloatingGeometry(
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ): Promise<void> {
+    return await invoke<void>("save_floating_geometry", {
+      x,
+      y,
+      width,
+      height,
+    });
+  },
+
   async saveStickyGeometry(
     noteId: string,
     x: number,

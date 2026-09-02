@@ -3,10 +3,11 @@ mod tests {
     use std::fs;
     use tauri_plugin_global_shortcut::Shortcut;
     use crate::db::{
-        db_clear_all_notes, db_delete_note, db_export_to, db_get_note_by_id, db_get_notes,
-        db_get_open_sticky_windows, db_get_settings, db_get_sticky_window, db_import_from,
-        db_save_note, db_save_sticky_geometry, db_set_sticky_open, db_update_setting,
-        get_default_db_path, init_db, DbState, Note,
+        db_clear_all_notes, db_delete_note, db_export_to, db_get_floating_geometry,
+        db_get_note_by_id, db_get_notes, db_get_open_sticky_windows, db_get_settings,
+        db_get_sticky_window, db_import_from, db_save_floating_geometry, db_save_note,
+        db_save_sticky_geometry, db_set_sticky_open, db_update_setting, get_default_db_path,
+        init_db, DbState, Note,
     };
 
     #[test]
@@ -144,6 +145,17 @@ mod tests {
         db_update_setting(&conn, "hotkey", "Ctrl+Alt+N").expect("Deveria atualizar hotkey");
         let updated_settings = db_get_settings(&conn).expect("Deveria obter configurações");
         assert_eq!(updated_settings.hotkey, "Ctrl+Alt+N");
+
+        // Geometria da janela flutuante
+        let initial_geom = db_get_floating_geometry(&conn).expect("Deveria consultar geometria");
+        assert!(initial_geom.is_none());
+
+        db_save_floating_geometry(&conn, 500.0, 300.0, 820.0, 560.0)
+            .expect("Deveria salvar geometria flutuante");
+        let saved_geom = db_get_floating_geometry(&conn)
+            .expect("Deveria consultar geometria salva")
+            .expect("Deveria existir geometria salva");
+        assert_eq!(saved_geom, (500.0, 300.0, 820.0, 560.0));
 
         // Limpeza
         let _ = fs::remove_dir_all(&temp_dir);

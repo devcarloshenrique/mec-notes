@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { WindowTitlebar } from "./components/WindowTitlebar";
@@ -61,6 +61,13 @@ function MainApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const modeRef = useRef<"floating" | "window">(mode);
+  const geometryTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   // Carregar notas e configurações do SQLite via Tauri IPC
   const loadInitialData = useCallback(async () => {
@@ -138,10 +145,8 @@ Checklist inicial do projeto **mec-notes**.
           if (!updatedNote || !updatedNote.id) return;
 
           setNotes((prev) => {
-            const exists = prev.some((n) => n.id === updatedNote.id);
-            const next = exists
-              ? prev.map((n) => (n.id === updatedNote.id ? updatedNote : n))
-              : [updatedNote, ...prev];
+            const filtered = prev.filter((n) => n.id !== updatedNote.id);
+            const next = [updatedNote, ...filtered];
 
             return next.sort((a, b) => {
               if (a.is_pinned !== b.is_pinned) {
@@ -206,6 +211,83 @@ Checklist inicial do projeto **mec-notes**.
     };
   }, []);
 
+  // Monitorar e persistir posição e tamanho da janela principal no modo flutuante
+  useEffect(() => {
+    let unlistenResize: (() => void) | null = null;
+    let unlistenMove: (() => void) | null = null;
+    let isDisposed = false;
+
+    const setupFloatingGeometryListeners = async () => {
+      try {
+        const currentWin = getCurrentWindow();
+
+        const saveGeometry = () => {
+          if (isDisposed || modeRef.current !== "floating") return;
+          if (geometryTimerRef.current) {
+            clearTimeout(geometryTimerRef.current);
+          }
+
+          geometryTimerRef.current = setTimeout(async () => {
+            if (isDisposed || modeRef.current !== "floating") return;
+            try {
+              const [pos, size, scale] = await Promise.all([
+                currentWin.outerPosition(),
+                currentWin.innerSize(),
+                currentWin.scaleFactor(),
+              ]);
+
+              if (isDisposed || modeRef.current !== "floating") return;
+
+              const logicalPos = pos.toLogical(scale);
+              const logicalSize = size.toLogical(scale);
+
+              await dbService.saveFloatingGeometry(
+                logicalPos.x,
+                logicalPos.y,
+                logicalSize.width,
+                logicalSize.height
+              );
+            } catch (err) {
+              console.error("Erro ao persistir geometria da janela flutuante:", err);
+            }
+          }, 350);
+        };
+
+        const resFn = await currentWin.onResized(() => {
+          saveGeometry();
+        });
+        if (isDisposed) {
+          resFn();
+        } else {
+          unlistenResize = resFn;
+        }
+
+        const moveFn = await currentWin.onMoved(() => {
+          saveGeometry();
+        });
+        if (isDisposed) {
+          moveFn();
+        } else {
+          unlistenMove = moveFn;
+        }
+      } catch (err) {
+        console.error("Erro ao configurar listeners de geometria flutuante:", err);
+      }
+    };
+
+    setupFloatingGeometryListeners();
+
+    return () => {
+      isDisposed = true;
+      if (geometryTimerRef.current) {
+        clearTimeout(geometryTimerRef.current);
+        geometryTimerRef.current = null;
+      }
+      if (unlistenResize) unlistenResize();
+      if (unlistenMove) unlistenMove();
+    };
+  }, []);
+
   // Alternância entre Modo Flutuante e Modo Janela
   const handleToggleMode = async () => {
     if (isToggling) return;
@@ -248,7 +330,6 @@ Checklist inicial do projeto **mec-notes**.
 
     try {
       const saved = await dbService.saveNote(newNote);
-      setNotes((prev) => [saved, ...prev]);
       setActiveNote(saved);
     } catch (err) {
       console.error("Erro ao criar nota:", err);
@@ -260,17 +341,7 @@ Checklist inicial do projeto **mec-notes**.
   // Salvar nota
   const handleSaveNote = async (updatedNote: Note) => {
     try {
-      const saved = await dbService.saveNote(updatedNote);
-      setNotes((prev) => {
-        const next = prev.map((n) => (n.id === saved.id ? saved : n));
-        return next.sort((a, b) => {
-          if (a.is_pinned !== b.is_pinned) {
-            return a.is_pinned ? -1 : 1;
-          }
-          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-        });
-      });
-      setActiveNote(saved);
+      await dbService.saveNote(updatedNote);
     } catch (err) {
       console.error("Erro ao salvar nota:", err);
     }
@@ -282,12 +353,6 @@ Checklist inicial do projeto **mec-notes**.
       // Se a nota estiver aberta como sticky, fecha a janela correspondente
       await dbService.closeStickyNote(id).catch(() => {});
       await dbService.deleteNote(id);
-      const remainingNotes = notes.filter((n) => n.id !== id);
-      setNotes(remainingNotes);
-
-      if (activeNote?.id === id) {
-        setActiveNote(remainingNotes.length > 0 ? remainingNotes[0] : null);
-      }
     } catch (err) {
       console.error("Erro ao excluir nota:", err);
     }
