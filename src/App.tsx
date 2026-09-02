@@ -399,6 +399,16 @@ Checklist inicial do projeto **mec-notes**.
     await handleSaveNote(updated);
   };
 
+  // Alterar cor da nota
+  const handleChangeColor = async (note: Note, newColor: string) => {
+    const updated = {
+      ...note,
+      color: newColor,
+      updated_at: new Date().toISOString(),
+    };
+    await handleSaveNote(updated);
+  };
+
   // Abrir nota como Sticky Note na área de trabalho
   const handleOpenSticky = async (note: Note) => {
     try {
@@ -439,6 +449,7 @@ Checklist inicial do projeto **mec-notes**.
           onDelete={handleDeleteNote}
           onTogglePin={handleTogglePin}
           onOpenSticky={handleOpenSticky}
+          onChangeColor={handleChangeColor}
           onToggleSidebar={() => setIsSidebarOpen(false)}
           onOpenSettings={() => setSettingsOpen(true)}
         />

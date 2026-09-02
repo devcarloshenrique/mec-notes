@@ -8,9 +8,12 @@ import {
   Trash,
   Warning,
   NotePencil,
+  Palette,
+  Check,
 } from "@phosphor-icons/react";
 import { formatRelative } from "../lib/utils";
 import { Note } from "../services/db";
+import { NOTE_COLORS, getNoteColor } from "../lib/colors";
 
 type Props = {
   notes: Note[];
@@ -22,6 +25,7 @@ type Props = {
   onDelete: (id: string) => void;
   onTogglePin?: (note: Note) => void;
   onOpenSticky?: (note: Note) => void;
+  onChangeColor?: (note: Note, color: string) => void;
   onToggleSidebar?: () => void;
   onOpenSettings?: () => void;
 };
@@ -42,6 +46,7 @@ export const NotesSidebar: React.FC<Props> = ({
   onDelete,
   onTogglePin,
   onOpenSticky,
+  onChangeColor,
   onToggleSidebar,
   onOpenSettings,
 }) => {
@@ -233,6 +238,8 @@ export const NotesSidebar: React.FC<Props> = ({
               );
             }
 
+            const colorOpt = getNoteColor(note.color);
+
             return (
               <button
                 key={note.id}
@@ -260,9 +267,15 @@ export const NotesSidebar: React.FC<Props> = ({
                       />
                     </span>
                   )}
+                  {note.color && note.color !== "default" && (
+                    <span
+                      className={`size-2 rounded-full shrink-0 ${colorOpt.badgeClass}`}
+                      title={`Cor: ${colorOpt.name}`}
+                    />
+                  )}
                   <h3
                     className={`font-medium text-sm text-app-text truncate flex-1 ${
-                      !note.is_pinned ? "pl-0.5" : ""
+                      !note.is_pinned && (!note.color || note.color === "default") ? "pl-0.5" : ""
                     }`}
                   >
                     {note.title.trim() || "Nova nota"}
@@ -340,7 +353,7 @@ export const NotesSidebar: React.FC<Props> = ({
         <div
           ref={contextMenuRef}
           style={{ top: `${contextMenu.y}px`, left: `${contextMenu.x}px` }}
-          className="fixed z-50 min-w-[180px] overflow-hidden rounded-lg border border-app-border bg-app-sidebar p-1.5 text-app-text shadow-2xl backdrop-blur animate-in fade-in-80"
+          className="fixed z-50 min-w-[190px] overflow-hidden rounded-lg border border-app-border bg-app-sidebar p-1.5 text-app-text shadow-2xl backdrop-blur animate-in fade-in-80"
         >
           {onOpenSticky && (
             <button
@@ -366,6 +379,36 @@ export const NotesSidebar: React.FC<Props> = ({
               <PushPin className="text-sm text-app-muted" />
               <span>{contextMenu.note.is_pinned ? "Desafixar do topo" : "Fixar no topo"}</span>
             </button>
+          )}
+
+          {/* Seleção rápida de cor no context menu */}
+          {onChangeColor && (
+            <div className="px-2.5 py-1.5 border-t border-app-border my-1">
+              <div className="flex items-center gap-1 text-[10px] uppercase font-bold text-app-muted tracking-wider mb-1.5">
+                <Palette className="text-xs" />
+                <span>Cor da Nota</span>
+              </div>
+              <div className="flex items-center justify-between gap-1">
+                {NOTE_COLORS.map((c) => {
+                  const isSelected = (contextMenu.note.color || "default") === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => {
+                        onChangeColor(contextMenu.note, c.id);
+                        setContextMenu(null);
+                      }}
+                      title={c.name}
+                      className={`size-4 rounded-full ${c.dotClass} transition-transform hover:scale-125 flex items-center justify-center cursor-pointer ${
+                        isSelected ? "ring-2 ring-white ring-offset-1 ring-offset-zinc-900 scale-110" : "opacity-80 hover:opacity-100"
+                      }`}
+                    >
+                      {isSelected && <Check className="text-[8px] text-zinc-950 font-bold" weight="bold" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           )}
 
           <div className="my-1 h-px bg-app-border" />
