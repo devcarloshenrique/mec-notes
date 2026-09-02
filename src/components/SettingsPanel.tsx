@@ -296,26 +296,31 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
             <div className="flex items-center gap-2">
               <div
                 className={`flex flex-1 items-center gap-1.5 rounded-lg border border-app-border bg-app-dark px-3 py-2 transition ${
-                  capturing ? "border-white/40 ring-1 ring-white/20" : ""
+                  capturing ? "border-white/50 ring-1 ring-white/30" : ""
                 }`}
               >
-                {capturing ? (
-                  <span className="text-[12px] text-white font-medium animate-pulse">
-                    Pressione as teclas… (Esc cancela)
-                  </span>
-                ) : captured.length === 0 ? (
+                {captured.length === 0 ? (
                   <span className="text-[12px] text-app-muted">
-                    Pressione as teclas…
+                    {capturing ? "Pressione as teclas no teclado…" : "Nenhum atalho configurado"}
                   </span>
                 ) : (
                   captured.map((k, i) => (
                     <kbd
                       key={i}
-                      className="rounded border border-app-border bg-zinc-800 px-2 py-0.5 font-mono text-[11px] text-white shadow-xs"
+                      className={`rounded border px-2 py-0.5 font-mono text-[11px] shadow-xs ${
+                        capturing
+                          ? "border-white/40 bg-zinc-700 text-white font-semibold"
+                          : "border-app-border bg-zinc-800 text-white"
+                      }`}
                     >
                       {k}
                     </kbd>
                   ))
+                )}
+                {capturing && (
+                  <span className="ml-auto text-[10px] text-zinc-400 animate-pulse">
+                    Gravando...
+                  </span>
                 )}
               </div>
 
