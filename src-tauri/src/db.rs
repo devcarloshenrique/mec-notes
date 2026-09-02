@@ -11,8 +11,14 @@ pub struct Note {
     pub content: String,
     pub tags: Vec<String>,
     pub is_pinned: bool,
+    #[serde(default = "default_color")]
+    pub color: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+}
+
+fn default_color() -> Option<String> {
+    Some("default".to_string())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,6 +108,7 @@ pub fn init_db(db_path: &Path) -> Result<Connection, String> {
             content TEXT NOT NULL,
             tags TEXT NOT NULL DEFAULT '[]',
             is_pinned INTEGER NOT NULL DEFAULT 0,
+            color TEXT NOT NULL DEFAULT 'default',
             window_x REAL,
             window_y REAL,
             window_w REAL,
@@ -113,6 +120,34 @@ pub fn init_db(db_path: &Path) -> Result<Connection, String> {
         [],
     )
     .map_err(|e| format!("Falha ao criar tabela de notas: {}", e))?;
+
+    // Migração transparente da coluna 'color' caso tabela já existisse
+    let has_color_col: bool = {
+        let mut pragma_stmt = conn
+            .prepare("PRAGMA table_info(notes)")
+            .map_err(|e| format!("Erro ao verificar estrutura da tabela notes: {}", e))?;
+        let col_names = pragma_stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(|e| format!("Erro ao ler colunas de notes: {}", e))?;
+
+        let mut found = false;
+        for c in col_names {
+            if let Ok(name) = c {
+                if name == "color" {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        found
+    };
+
+    if !has_color_col {
+        let _ = conn.execute(
+            "ALTER TABLE notes ADD COLUMN color TEXT NOT NULL DEFAULT 'default'",
+            [],
+        );
+    }
 
     // Tabela settings
     conn.execute(
@@ -166,7 +201,7 @@ pub fn init_db(db_path: &Path) -> Result<Connection, String> {
 pub fn db_get_notes(conn: &Connection) -> Result<Vec<Note>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, title, content, tags, is_pinned, created_at, updated_at 
+            "SELECT id, title, content, tags, is_pinned, color, created_at, updated_at 
              FROM notes 
              ORDER BY is_pinned DESC, updated_at DESC",
         )
@@ -176,6 +211,7 @@ pub fn db_get_notes(conn: &Connection) -> Result<Vec<Note>, String> {
         .query_map([], |row| {
             let tags_raw: String = row.get(3)?;
             let is_pinned_int: i64 = row.get(4)?;
+            let color: Option<String> = row.get(5).ok().or_else(|| Some("default".to_string()));
             let tags: Vec<String> = serde_json::from_str(&tags_raw).unwrap_or_default();
 
             Ok(Note {
@@ -184,8 +220,9 @@ pub fn db_get_notes(conn: &Connection) -> Result<Vec<Note>, String> {
                 content: row.get(2)?,
                 tags,
                 is_pinned: is_pinned_int != 0,
-                created_at: row.get(5)?,
-                updated_at: row.get(6)?,
+                color,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
             })
         })
         .map_err(|e| format!("Erro ao executar consulta de notas: {}", e))?;
@@ -201,7 +238,7 @@ pub fn db_get_notes(conn: &Connection) -> Result<Vec<Note>, String> {
 pub fn db_get_note_by_id(conn: &Connection, id: &str) -> Result<Option<Note>, String> {
     let mut stmt = conn
         .prepare(
-            "SELECT id, title, content, tags, is_pinned, created_at, updated_at 
+            "SELECT id, title, content, tags, is_pinned, color, created_at, updated_at 
              FROM notes 
              WHERE id = ?1",
         )
@@ -211,6 +248,7 @@ pub fn db_get_note_by_id(conn: &Connection, id: &str) -> Result<Option<Note>, St
         .query_row(params![id], |row| {
             let tags_raw: String = row.get(3)?;
             let is_pinned_int: i64 = row.get(4)?;
+            let color: Option<String> = row.get(5).ok().or_else(|| Some("default".to_string()));
             let tags: Vec<String> = serde_json::from_str(&tags_raw).unwrap_or_default();
 
             Ok(Note {
@@ -219,8 +257,9 @@ pub fn db_get_note_by_id(conn: &Connection, id: &str) -> Result<Option<Note>, St
                 content: row.get(2)?,
                 tags,
                 is_pinned: is_pinned_int != 0,
-                created_at: row.get(5)?,
-                updated_at: row.get(6)?,
+                color,
+                created_at: row.get(6)?,
+                updated_at: row.get(7)?,
             })
         })
         .optional()
@@ -233,16 +272,18 @@ pub fn db_save_note(conn: &Connection, note: Note) -> Result<Note, String> {
     let tags_json = serde_json::to_string(&note.tags)
         .map_err(|e| format!("Erro ao serializar tags: {}", e))?;
     let is_pinned_int = if note.is_pinned { 1 } else { 0 };
+    let color_val = note.color.clone().unwrap_or_else(|| "default".to_string());
 
     conn.execute(
         "
-        INSERT INTO notes (id, title, content, tags, is_pinned, created_at, updated_at)
-        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+        INSERT INTO notes (id, title, content, tags, is_pinned, color, created_at, updated_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
         ON CONFLICT(id) DO UPDATE SET
             title = excluded.title,
             content = excluded.content,
             tags = excluded.tags,
             is_pinned = excluded.is_pinned,
+            color = excluded.color,
             updated_at = excluded.updated_at;
         ",
         params![
@@ -251,6 +292,7 @@ pub fn db_save_note(conn: &Connection, note: Note) -> Result<Note, String> {
             note.content,
             tags_json,
             is_pinned_int,
+            color_val,
             note.created_at,
             note.updated_at
         ],

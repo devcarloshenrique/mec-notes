@@ -46,6 +46,7 @@ mod tests {
             content: "# Olá Mundo\nConteúdo em markdown.".to_string(),
             tags: vec!["rust".to_string(), "tauri".to_string()],
             is_pinned: false,
+            color: Some("blue".to_string()),
             created_at: "2026-08-29T10:00:00Z".to_string(),
             updated_at: "2026-08-29T10:00:00Z".to_string(),
         };
@@ -58,6 +59,7 @@ mod tests {
             content: "Conteúdo importante".to_string(),
             tags: vec!["fixada".to_string()],
             is_pinned: true,
+            color: Some("emerald".to_string()),
             created_at: "2026-08-29T11:00:00Z".to_string(),
             updated_at: "2026-08-29T11:00:00Z".to_string(),
         };
@@ -67,13 +69,16 @@ mod tests {
         let notes = db_get_notes(&conn).expect("Deveria listar notas");
         assert_eq!(notes.len(), 2);
         assert_eq!(notes[0].id, "note-2"); // Fixada vem primeiro
+        assert_eq!(notes[0].color, Some("emerald".to_string()));
         assert_eq!(notes[1].id, "note-1");
+        assert_eq!(notes[1].color, Some("blue".to_string()));
 
         // 4. Buscar por ID
         let found = db_get_note_by_id(&conn, "note-1").expect("Deveria buscar nota");
         assert!(found.is_some());
         let found_note = found.unwrap();
         assert_eq!(found_note.title, "Primeira Nota");
+        assert_eq!(found_note.color, Some("blue".to_string()));
         assert_eq!(found_note.tags, vec!["rust", "tauri"]);
 
         // 5. Atualizar nota existente (UPSERT)
@@ -182,6 +187,7 @@ mod tests {
                 content: "Dados originais".to_string(),
                 tags: vec!["orig".to_string()],
                 is_pinned: false,
+                color: Some("purple".to_string()),
                 created_at: "2026-08-29T10:00:00Z".to_string(),
                 updated_at: "2026-08-29T10:00:00Z".to_string(),
             };
@@ -201,6 +207,7 @@ mod tests {
                 content: "Dados vindos de backup".to_string(),
                 tags: vec!["backup".to_string()],
                 is_pinned: true,
+                color: Some("amber".to_string()),
                 created_at: "2026-08-29T12:00:00Z".to_string(),
                 updated_at: "2026-08-29T12:00:00Z".to_string(),
             };

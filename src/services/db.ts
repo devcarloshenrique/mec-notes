@@ -6,6 +6,7 @@ export interface Note {
   content: string;
   tags: string[];
   is_pinned: boolean;
+  color?: string;
   created_at: string;
   updated_at: string;
 }
