@@ -22,6 +22,11 @@ export default {
           muted: '#a1a1aa', // zinc-400
           icon: '#a1a1aa', // zinc-400
         },
+        surface: {
+          DEFAULT: '#141313',
+          container: '#201f1f',
+          dim: '#141313',
+        },
         background: "#121212",
         foreground: "#e4e4e7",
         card: {

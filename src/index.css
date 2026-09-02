@@ -51,50 +51,100 @@ html, body, #root {
   overflow: hidden;
 }
 
-/* Custom Scrollbar - sutil, sem calha visível e com auto-hide para não criar faixas verticais indesejadas */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
-}
+/* Utilitários ZenNotes para Notas Adesivas */
+@layer utilities {
+  .glass-panel-focused {
+    background-color: #141313;
+  }
 
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
+  [contenteditable]:empty:before {
+    content: attr(data-placeholder);
+    color: rgba(180, 180, 180, 0.38);
+    pointer-events: none;
+  }
+  [contenteditable]:focus {
+    outline: none;
+  }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+  /* Custom Scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 9999px;
-}
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
-::-webkit-scrollbar-corner {
-  background: transparent;
-}
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 9999px;
+  }
 
-/* Reset explícito para textarea para evitar que o WebView2/Chromium desenhe barra vertical estática */
-textarea,
-.editor-textarea {
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
-  resize: none !important;
-}
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+  }
 
-textarea::-webkit-scrollbar,
-.editor-textarea::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-  background: transparent !important;
-}
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 
-.editor-textarea:focus {
-  outline: none;
+  /* Reset explícito para textarea */
+  textarea,
+  .editor-textarea {
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
+    resize: none !important;
+  }
+
+  textarea::-webkit-scrollbar,
+  .editor-textarea::-webkit-scrollbar {
+    display: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    background: transparent !important;
+  }
+
+  .editor-textarea:focus {
+    outline: none;
+  }
+
+  .icon-btn-sm {
+    width: 1.5rem;
+    height: 1.5rem;
+    border-radius: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.45);
+    transition: all 150ms ease-in-out;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .icon-btn-sm:hover {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+
+  .note-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.16) transparent !important;
+  }
+  .note-scrollbar::-webkit-scrollbar {
+    width: 4px !important;
+    height: 4px !important;
+    display: block !important;
+  }
+  .note-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.16) !important;
+    border-radius: 4px !important;
+  }
+  .note-scrollbar::-webkit-scrollbar-track {
+    background: transparent !important;
+  }
 }
