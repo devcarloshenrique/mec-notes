@@ -138,6 +138,10 @@ export const dbService = {
     return await invoke<void>("set_window_mode");
   },
 
+  async minimizeWindow(): Promise<void> {
+    return await invoke<void>("minimize_window");
+  },
+
   async toggleWindowVisibility(): Promise<boolean> {
     return await invoke<boolean>("toggle_window_visibility");
   },

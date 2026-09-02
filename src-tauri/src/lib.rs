@@ -27,11 +27,15 @@ pub mod commands {
     pub fn toggle_window_visibility(app: AppHandle) -> Result<bool, String> {
         if let Some(window) = app.get_webview_window("main") {
             let is_visible = window.is_visible().map_err(|e| e.to_string())?;
-            if is_visible {
+            let is_minimized = window.is_minimized().unwrap_or(false);
+
+            if is_visible && !is_minimized {
                 window.hide().map_err(|e| e.to_string())?;
                 Ok(false)
             } else {
+                let _ = window.unminimize();
                 window.show().map_err(|e| e.to_string())?;
+                let _ = window.set_always_on_top(true);
                 window.set_focus().map_err(|e| e.to_string())?;
                 Ok(true)
             }
@@ -59,47 +63,84 @@ pub mod commands {
             }
         };
 
-        if let Some((x, y, w, h)) = saved_geom {
-            window
-                .set_size(Size::Logical(LogicalSize {
-                    width: w.max(300.0),
-                    height: h.max(200.0),
-                }))
-                .map_err(|e| e.to_string())?;
-            window
-                .set_position(Position::Logical(tauri::LogicalPosition { x, y }))
-                .map_err(|e| e.to_string())?;
-        } else {
-            let width = 800.0;
-            let height = 520.0;
-            window
-                .set_size(Size::Logical(LogicalSize { width, height }))
-                .map_err(|e| e.to_string())?;
+        // Obter informações do monitor disponível para validação de limites
+        let monitor = window
+            .current_monitor()
+            .ok()
+            .flatten()
+            .or_else(|| window.primary_monitor().ok().flatten());
 
-            // Posicionar no canto inferior direito do monitor atual
-            if let Ok(Some(monitor)) = window.current_monitor() {
-                let screen_size = monitor.size();
-                let scale_factor = monitor.scale_factor();
-                let screen_width = screen_size.width as f64 / scale_factor;
-                let screen_height = screen_size.height as f64 / scale_factor;
+        let default_w = 800.0;
+        let default_h = 520.0;
+
+        let mut applied_position = false;
+
+        if let Some((saved_x, saved_y, saved_w, saved_h)) = saved_geom {
+            let width = saved_w.max(300.0);
+            let height = saved_h.max(200.0);
+
+            // Validar se as coordenadas salvas estão visíveis no monitor
+            if let Some(ref mon) = monitor {
+                let screen_size = mon.size();
+                let scale_factor = mon.scale_factor();
+                let mon_pos = mon.position();
+
+                let mon_x = mon_pos.x as f64 / scale_factor;
+                let mon_y = mon_pos.y as f64 / scale_factor;
+                let mon_w = screen_size.width as f64 / scale_factor;
+                let mon_h = screen_size.height as f64 / scale_factor;
+
+                // Tolerância para garantir que pelo menos parte da barra de título esteja acessível
+                let is_within_bounds = saved_x >= (mon_x - 100.0)
+                    && saved_x <= (mon_x + mon_w - 100.0)
+                    && saved_y >= mon_y
+                    && saved_y <= (mon_y + mon_h - 60.0);
+
+                if is_within_bounds {
+                    let _ = window.set_size(Size::Logical(LogicalSize { width, height }));
+                    let _ = window.set_position(Position::Logical(tauri::LogicalPosition {
+                        x: saved_x,
+                        y: saved_y,
+                    }));
+                    applied_position = true;
+                }
+            }
+        }
+
+        // Se não houver geometria válida anterior ou estiver fora da tela, posiciona com segurança
+        if !applied_position {
+            let width = default_w;
+            let height = default_h;
+            let _ = window.set_size(Size::Logical(LogicalSize { width, height }));
+
+            if let Some(ref mon) = monitor {
+                let screen_size = mon.size();
+                let scale_factor = mon.scale_factor();
+                let mon_pos = mon.position();
+
+                let mon_x = mon_pos.x as f64 / scale_factor;
+                let mon_y = mon_pos.y as f64 / scale_factor;
+                let mon_w = screen_size.width as f64 / scale_factor;
+                let mon_h = screen_size.height as f64 / scale_factor;
 
                 let margin = 24.0;
-                let taskbar_margin = 48.0; // Margem para barra de tarefas do Windows
-                let x = (screen_width - width - margin).max(0.0);
-                let y = (screen_height - height - taskbar_margin).max(0.0);
+                let taskbar_margin = 48.0;
+                let x = (mon_x + mon_w - width - margin).max(mon_x);
+                let y = (mon_y + mon_h - height - taskbar_margin).max(mon_y);
 
                 let phys_x = (x * scale_factor) as i32;
                 let phys_y = (y * scale_factor) as i32;
 
-                window
-                    .set_position(Position::Physical(PhysicalPosition {
-                        x: phys_x,
-                        y: phys_y,
-                    }))
-                    .map_err(|e| e.to_string())?;
+                let _ = window.set_position(Position::Physical(PhysicalPosition {
+                    x: phys_x,
+                    y: phys_y,
+                }));
+            } else {
+                let _ = window.center();
             }
         }
 
+        let _ = window.unminimize();
         window.show().map_err(|e| e.to_string())?;
         window.set_focus().map_err(|e| e.to_string())?;
         Ok(())
@@ -140,6 +181,12 @@ pub mod commands {
         window.center().map_err(|e| e.to_string())?;
         window.show().map_err(|e| e.to_string())?;
         window.set_focus().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    #[tauri::command]
+    pub fn minimize_window(window: WebviewWindow) -> Result<(), String> {
+        window.minimize().map_err(|e| e.to_string())?;
         Ok(())
     }
 
@@ -701,6 +748,7 @@ pub fn run() {
             commands::toggle_window_visibility,
             commands::set_floating_mode,
             commands::set_window_mode,
+            commands::minimize_window,
             commands::minimize_to_tray,
             commands::save_floating_geometry,
             commands::register_global_shortcut,
