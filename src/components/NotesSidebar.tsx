@@ -142,6 +142,12 @@ export const NotesSidebar: React.FC<Props> = ({
         className="h-10 border-b border-app-border flex items-center justify-between px-3 shrink-0 select-none bg-app-dark cursor-move"
       >
         <div className="flex items-center gap-2 pointer-events-none pl-1" data-tauri-drag-region>
+          <img
+            src="/logo_native.png"
+            alt="MEC Notes Logo"
+            className="h-4 w-auto select-none opacity-90 pointer-events-none"
+            draggable={false}
+          />
           <span className="font-semibold text-xs tracking-wider text-app-muted uppercase">Notas</span>
         </div>
         <div className="flex items-center gap-1 text-app-icon text-sm cursor-default">
@@ -158,7 +164,7 @@ export const NotesSidebar: React.FC<Props> = ({
       </div>
 
       {/* Busca e Botão Criar Nova Nota */}
-      <div className="p-3.5 flex gap-2">
+      <div className="p-3 flex items-center gap-2">
         <div className="relative flex-1">
           <MagnifyingGlass className="absolute left-3 top-1/2 -translate-y-1/2 text-app-muted text-lg pointer-events-none" />
           <input
@@ -173,7 +179,7 @@ export const NotesSidebar: React.FC<Props> = ({
           onClick={onCreate}
           aria-label="Nova Nota"
           title="Nova Nota (Ctrl+N)"
-          className="bg-white text-black rounded-lg w-9 h-9 flex items-center justify-center hover:bg-zinc-200 transition-colors shrink-0 shadow-sm"
+          className="text-white hover:text-white/80 hover:bg-white/10 rounded-lg p-2 transition-colors shrink-0 flex items-center justify-center cursor-pointer"
         >
           <Plus className="text-lg font-bold" weight="bold" />
         </button>
