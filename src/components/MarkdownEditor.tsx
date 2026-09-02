@@ -470,8 +470,8 @@ export const MarkdownEditor: React.FC<Props> = ({
 
       {/* Área Principal de Edição / Visualização Fluida e Sem Calha Estática */}
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden bg-app-editor">
-        <div className="flex-1 p-4 md:p-6 w-full h-full overflow-y-auto">
-          {tab === "edit" ? (
+        {tab === "edit" ? (
+          <div className="flex-1 p-4 md:p-6 flex flex-col min-h-0 overflow-hidden">
             <textarea
               ref={textareaRef}
               value={content}
@@ -479,14 +479,14 @@ export const MarkdownEditor: React.FC<Props> = ({
               onBlur={handleBlur}
               spellCheck={false}
               placeholder="Comece a escrever em Markdown..."
-              className="editor-textarea w-full h-full min-h-[250px] bg-transparent border-none resize-none text-app-text font-mono text-[13.5px] leading-relaxed placeholder:text-zinc-600 p-0 focus:ring-0 focus:outline-none overflow-hidden"
+              className="editor-textarea flex-1 w-full h-full bg-transparent border-none resize-none text-app-text font-mono text-[13.5px] leading-relaxed placeholder:text-zinc-600 p-0 focus:ring-0 focus:outline-none overflow-y-auto"
             />
-          ) : (
-            <div className="w-full text-app-text">
-              <MarkdownPreview source={content} />
-            </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="flex-1 p-4 md:p-6 w-full h-full overflow-y-auto text-app-text">
+            <MarkdownPreview source={content} />
+          </div>
+        )}
 
         {/* Status Bar Inferior (h-10 para casar com o rodapé da Sidebar) */}
         <footer className="h-10 border-t border-app-border flex items-center justify-between px-4 text-xs text-app-muted shrink-0 bg-app-dark select-none">

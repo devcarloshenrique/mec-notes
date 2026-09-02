@@ -511,19 +511,21 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
       </header>
 
       {/* Conteúdo */}
-      <main className="flex-1 overflow-hidden bg-app-editor">
+      <main className="flex-1 min-h-0 overflow-hidden bg-app-editor">
         {tab === "edit" ? (
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            onBlur={handleBlur}
-            spellCheck={false}
-            placeholder="Digite suas anotações aqui em Markdown…"
-            className="editor-textarea h-full w-full resize-none overflow-y-auto bg-transparent p-3 font-mono text-[12px] leading-relaxed text-app-text outline-none placeholder:text-zinc-600"
-            autoFocus
-          />
+          <div className="h-full w-full p-3 flex flex-col min-h-0 overflow-hidden">
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              onBlur={handleBlur}
+              spellCheck={false}
+              placeholder="Digite suas anotações aqui em Markdown…"
+              className="editor-textarea flex-1 w-full h-full resize-none overflow-y-auto bg-transparent font-mono text-[12px] leading-relaxed text-app-text outline-none placeholder:text-zinc-600 p-0 border-none focus:ring-0"
+              autoFocus
+            />
+          </div>
         ) : (
-          <div className="h-full overflow-y-auto p-3 text-[12px] text-app-text">
+          <div className="h-full w-full overflow-y-auto p-3 text-[12px] text-app-text">
             <MarkdownPreview source={content} />
           </div>
         )}
