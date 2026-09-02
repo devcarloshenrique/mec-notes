@@ -230,6 +230,10 @@ Checklist inicial do projeto **mec-notes**.
           geometryTimerRef.current = setTimeout(async () => {
             if (isDisposed || modeRef.current !== "floating") return;
             try {
+              const isMinimized = await currentWin.isMinimized().catch(() => false);
+              const isVisible = await currentWin.isVisible().catch(() => false);
+              if (isMinimized || !isVisible) return;
+
               const [pos, size, scale] = await Promise.all([
                 currentWin.outerPosition(),
                 currentWin.innerSize(),
@@ -241,12 +245,20 @@ Checklist inicial do projeto **mec-notes**.
               const logicalPos = pos.toLogical(scale);
               const logicalSize = size.toLogical(scale);
 
-              await dbService.saveFloatingGeometry(
-                logicalPos.x,
-                logicalPos.y,
-                logicalSize.width,
-                logicalSize.height
-              );
+              // Validação de sanidade: evitar salvar coordenadas com valores espúrios
+              if (
+                logicalSize.width >= 200 &&
+                logicalSize.height >= 150 &&
+                logicalPos.x > -1000 &&
+                logicalPos.y > -1000
+              ) {
+                await dbService.saveFloatingGeometry(
+                  logicalPos.x,
+                  logicalPos.y,
+                  logicalSize.width,
+                  logicalSize.height
+                );
+              }
             } catch (err) {
               console.error("Erro ao persistir geometria da janela flutuante:", err);
             }
@@ -310,9 +322,17 @@ Checklist inicial do projeto **mec-notes**.
 
   const handleMinimize = async () => {
     try {
+      await dbService.minimizeWindow();
+    } catch (err) {
+      console.error("Erro ao minimizar janela:", err);
+    }
+  };
+
+  const handleCloseToTray = async () => {
+    try {
       await dbService.minimizeToTray();
     } catch (err) {
-      console.error("Erro ao minimizar:", err);
+      console.error("Erro ao fechar para bandeja:", err);
     }
   };
 
@@ -347,10 +367,21 @@ Checklist inicial do projeto **mec-notes**.
     }
   };
 
+  // Atualizar título a partir da barra de título
+  const handleUpdateTitle = (newTitle: string) => {
+    if (!activeNote) return;
+    const updated = {
+      ...activeNote,
+      title: newTitle,
+      updated_at: new Date().toISOString(),
+    };
+    setActiveNote(updated);
+    handleSaveNote(updated);
+  };
+
   // Excluir nota
   const handleDeleteNote = async (id: string) => {
     try {
-      // Se a nota estiver aberta como sticky, fecha a janela correspondente
       await dbService.closeStickyNote(id).catch(() => {});
       await dbService.deleteNote(id);
     } catch (err) {
@@ -395,36 +426,41 @@ Checklist inicial do projeto **mec-notes**.
   }, []);
 
   return (
-    <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-card text-foreground select-none">
-      {/* Barra de Título Customizada (WindowTitlebar) */}
-      <WindowTitlebar
-        mode={mode}
-        onToggleMode={handleToggleMode}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onMinimize={handleMinimize}
-        onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
-        isSidebarOpen={isSidebarOpen}
-        isToggling={isToggling}
-      />
+    <div className="relative flex h-screen w-screen bg-app-dark text-app-text overflow-hidden antialiased select-none">
+      {/* Sidebar Lateral */}
+      {isSidebarOpen && (
+        <NotesSidebar
+          notes={notes}
+          activeId={activeNote?.id || null}
+          query={query}
+          onQueryChange={setQuery}
+          onSelect={(note) => setActiveNote(note)}
+          onCreate={handleCreateNote}
+          onDelete={handleDeleteNote}
+          onTogglePin={handleTogglePin}
+          onOpenSticky={handleOpenSticky}
+          onToggleSidebar={() => setIsSidebarOpen(false)}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
+      )}
 
-      {/* Conteúdo Principal (Sidebar + Editor) */}
-      <div className="relative flex flex-1 overflow-hidden">
-        {isSidebarOpen && (
-          <NotesSidebar
-            notes={notes}
-            activeId={activeNote?.id || null}
-            query={query}
-            onQueryChange={setQuery}
-            onSelect={(note) => setActiveNote(note)}
-            onCreate={handleCreateNote}
-            onDelete={handleDeleteNote}
-            onTogglePin={handleTogglePin}
-            onOpenSticky={handleOpenSticky}
-          />
-        )}
+      {/* Conteúdo Principal (Barra de Título + Editor) */}
+      <div className="flex flex-col flex-1 overflow-hidden bg-app-editor">
+        <WindowTitlebar
+          mode={mode}
+          activeNote={activeNote}
+          onUpdateTitle={handleUpdateTitle}
+          onToggleMode={handleToggleMode}
+          onMinimize={handleMinimize}
+          onCloseToTray={handleCloseToTray}
+          onToggleSidebar={() => setIsSidebarOpen((prev) => !prev)}
+          isSidebarOpen={isSidebarOpen}
+          onTogglePin={handleTogglePin}
+          onOpenSticky={handleOpenSticky}
+        />
 
         {loading ? (
-          <div className="grid flex-1 place-items-center text-xs text-muted-foreground">
+          <div className="flex-1 flex items-center justify-center text-xs text-app-muted">
             Carregando notas...
           </div>
         ) : (
@@ -436,14 +472,14 @@ Checklist inicial do projeto **mec-notes**.
             autoSaveInterval={settings?.auto_save_interval ?? 500}
           />
         )}
-
-        {/* Modal de Configurações (SettingsPanel) */}
-        <SettingsPanel
-          open={settingsOpen}
-          onClose={() => setSettingsOpen(false)}
-          onDataChanged={loadInitialData}
-        />
       </div>
+
+      {/* Modal de Configurações */}
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onDataChanged={loadInitialData}
+      />
     </div>
   );
 }

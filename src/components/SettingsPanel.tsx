@@ -1,16 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Database,
-  Download,
+  DownloadSimple,
   Keyboard,
-  Upload,
+  UploadSimple,
   X,
   Check,
-  AlertCircle,
-  Loader2,
-  Trash2,
-  AlertTriangle,
-} from "lucide-react";
+  WarningCircle,
+  SpinnerGap,
+  Trash,
+  Warning,
+} from "@phosphor-icons/react";
 import { dbService } from "../services/db";
 
 type Props = {
@@ -94,7 +94,7 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
     };
   }, [open]);
 
-  // Captura de atalho do teclado
+  // Captura de atalho do teclado com preview dinâmico instantâneo
   useEffect(() => {
     if (!capturing) return;
 
@@ -121,7 +121,10 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
         const finalKeys = [...mods.map((m) => KEY_LABEL[m] || m), label];
         setCaptured(finalKeys);
       } else {
-        setCaptured(mods.map((m) => KEY_LABEL[m] || m));
+        const currentMods = mods.map((m) => KEY_LABEL[m] || m);
+        if (currentMods.length > 0) {
+          setCaptured(currentMods);
+        }
       }
     };
 
@@ -163,7 +166,7 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
     }
   };
 
-  // Exportar banco de dados (Abre diálogo nativo do Windows)
+  // Exportar banco de dados
   const handleExportDb = async () => {
     try {
       setIsExporting(true);
@@ -182,7 +185,7 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
     }
   };
 
-  // Importar banco de dados (Abre diálogo nativo do Windows)
+  // Importar banco de dados
   const handleImportDb = async () => {
     try {
       setIsImporting(true);
@@ -236,42 +239,42 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
   const isPendingChanges = captured.join("+") !== savedHotkey;
 
   return (
-    <div className="absolute inset-0 z-20 flex items-center justify-center p-4 select-none">
+    <div className="absolute inset-0 z-50 flex items-center justify-center p-4 select-none">
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/60 backdrop-blur-xs"
         onClick={onClose}
         aria-hidden
       />
       <div
         role="dialog"
         aria-label="Configurações"
-        className="relative w-full max-w-md overflow-hidden rounded-xl border border-border bg-card shadow-2xl flex flex-col max-h-[85vh]"
+        className="relative w-full max-w-md overflow-hidden rounded-xl border border-app-border bg-app-sidebar shadow-2xl flex flex-col max-h-[85vh] text-app-text"
       >
         {/* Cabeçalho */}
-        <div className="flex items-center justify-between border-b border-border px-4 py-3 shrink-0">
-          <h2 className="text-sm font-semibold text-foreground">Configurações</h2>
+        <div className="flex items-center justify-between border-b border-app-border px-4 py-3 shrink-0 bg-app-dark">
+          <h2 className="text-sm font-semibold text-white">Configurações</h2>
           <button
             onClick={onClose}
             aria-label="Fechar"
-            className="grid size-7 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+            className="grid size-7 place-items-center rounded-md text-app-muted hover:bg-white/10 hover:text-white transition-colors"
           >
-            <X className="size-4" />
+            <X className="text-base" />
           </button>
         </div>
 
         {/* Notificações / Feedbacks */}
         {feedback && (
           <div
-            className={`mx-4 mt-3 px-3 py-2 rounded-md flex items-center gap-2 text-xs border ${
+            className={`mx-4 mt-3 px-3 py-2 rounded-lg flex items-center gap-2 text-xs border ${
               feedback.type === "success"
                 ? "bg-emerald-950/60 border-emerald-800/80 text-emerald-300"
-                : "bg-destructive/20 border-destructive/50 text-destructive-foreground"
+                : "bg-red-950/60 border-red-800/80 text-red-300"
             }`}
           >
             {feedback.type === "success" ? (
-              <Check className="size-3.5 text-emerald-400 shrink-0" />
+              <Check className="text-sm text-emerald-400 shrink-0" weight="bold" />
             ) : (
-              <AlertCircle className="size-3.5 text-destructive shrink-0" />
+              <WarningCircle className="text-sm text-red-400 shrink-0" weight="fill" />
             )}
             <span className="leading-tight">{feedback.message}</span>
           </div>
@@ -282,34 +285,33 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
           {/* BLOCO 1: Atalho global de ativação */}
           <section>
             <div className="mb-2 flex items-center gap-2">
-              <Keyboard className="size-4 text-primary shrink-0" />
-              <h3 className="text-[13px] font-medium text-foreground">
+              <Keyboard className="text-base text-white shrink-0" />
+              <h3 className="text-xs font-semibold text-white uppercase tracking-wider">
                 Atalho global de ativação
               </h3>
             </div>
-            <p className="mb-2.5 text-[12px] leading-relaxed text-muted-foreground">
-              Invoca o MEC Notes instantaneamente de qualquer lugar do Windows. A nova tecla é enviada ao backend Rust,
-              que atualiza o <code className="font-mono text-primary">global-shortcut</code> e persiste a escolha.
+            <p className="mb-2.5 text-[12px] leading-relaxed text-app-muted">
+              Invoca o MEC Notes instantaneamente de qualquer lugar do Windows. A nova tecla é salva no SQLite.
             </p>
             <div className="flex items-center gap-2">
               <div
-                className={`flex flex-1 items-center gap-1.5 rounded-md border border-border bg-background/40 px-3 py-2 transition ${
-                  capturing ? "border-primary/40 ring-1 ring-white/20" : ""
+                className={`flex flex-1 items-center gap-1.5 rounded-lg border border-app-border bg-app-dark px-3 py-2 transition ${
+                  capturing ? "border-white/40 ring-1 ring-white/20" : ""
                 }`}
               >
                 {capturing ? (
-                  <span className="text-[12px] text-primary font-medium animate-pulse">
+                  <span className="text-[12px] text-white font-medium animate-pulse">
                     Pressione as teclas… (Esc cancela)
                   </span>
                 ) : captured.length === 0 ? (
-                  <span className="text-[12px] text-muted-foreground">
+                  <span className="text-[12px] text-app-muted">
                     Pressione as teclas…
                   </span>
                 ) : (
                   captured.map((k, i) => (
                     <kbd
                       key={i}
-                      className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground"
+                      className="rounded border border-app-border bg-zinc-800 px-2 py-0.5 font-mono text-[11px] text-white shadow-xs"
                     >
                       {k}
                     </kbd>
@@ -325,19 +327,19 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
                       setCapturing(false);
                     }}
                     disabled={isSavingHotkey}
-                    className="rounded-md border border-border bg-background/40 hover:bg-accent px-2.5 py-2 text-[12px] font-medium text-muted-foreground transition-colors"
+                    className="rounded-lg border border-app-border bg-zinc-800 hover:bg-zinc-700 px-2.5 py-2 text-[12px] font-medium text-app-muted hover:text-white transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={handleSaveHotkey}
                     disabled={isSavingHotkey}
-                    className="flex items-center gap-1 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-primary-foreground transition-opacity hover:opacity-90 shadow-sm"
+                    className="flex items-center gap-1 rounded-lg bg-white px-3 py-2 text-[12px] font-medium text-black transition-opacity hover:opacity-90 shadow-sm"
                   >
                     {isSavingHotkey ? (
-                      <Loader2 className="size-3.5 animate-spin" />
+                      <SpinnerGap className="text-sm animate-spin" />
                     ) : (
-                      <Check className="size-3.5" />
+                      <Check className="text-sm font-bold" weight="bold" />
                     )}
                     <span>Salvar</span>
                   </button>
@@ -345,10 +347,9 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
               ) : (
                 <button
                   onClick={() => {
-                    setCaptured([]);
                     setCapturing(true);
                   }}
-                  className="rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-primary-foreground transition-opacity hover:opacity-90"
+                  className="rounded-lg bg-white px-3 py-2 text-[12px] font-medium text-black transition-opacity hover:opacity-90 shadow-sm"
                 >
                   Alterar
                 </button>
@@ -359,35 +360,39 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
           {/* BLOCO 2: Banco de dados */}
           <section>
             <div className="mb-2 flex items-center gap-2">
-              <Database className="size-4 text-primary shrink-0" />
-              <h3 className="text-[13px] font-medium text-foreground">Banco de dados</h3>
+              <Database className="text-base text-white shrink-0" />
+              <h3 className="text-xs font-semibold text-white uppercase tracking-wider">
+                Banco de dados SQLite
+              </h3>
             </div>
-            <div className="rounded-md border border-border bg-background/40 px-3 py-2">
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="rounded-lg border border-app-border bg-app-dark px-3 py-2">
+              <span className="text-[10px] uppercase tracking-wider text-app-muted">
                 Caminho do arquivo
               </span>
-              <p className="mt-0.5 truncate font-mono text-[12px] text-foreground">
+              <p className="mt-0.5 truncate font-mono text-[12px] text-zinc-300">
                 {dbPath}
               </p>
             </div>
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
-              Resolvido automaticamente a partir de <code className="font-mono text-primary">~/Documents/MecNotes</code> pelo backend Rust.
+            <p className="mt-1.5 text-[11px] text-app-muted">
+              Persistido com segurança em <code className="font-mono text-zinc-300">~/Documents/MecNotes</code>.
             </p>
           </section>
 
           {/* BLOCO 3: Importar / Exportar */}
           <section>
-            <h3 className="mb-2 text-[13px] font-medium text-foreground">Importar / Exportar</h3>
+            <h3 className="mb-2 text-xs font-semibold text-white uppercase tracking-wider">
+              Backup e Restauração
+            </h3>
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={handleExportDb}
                 disabled={isExporting || isImporting}
-                className="flex items-center justify-center gap-2 rounded-md border border-border bg-background/40 px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+                className="flex items-center justify-center gap-2 rounded-lg border border-app-border bg-app-dark px-3 py-2 text-[12px] font-medium text-app-text transition-colors hover:bg-zinc-800 disabled:opacity-50"
               >
                 {isExporting ? (
-                  <Loader2 className="size-4 animate-spin" />
+                  <SpinnerGap className="text-base animate-spin" />
                 ) : (
-                  <Download className="size-4" />
+                  <DownloadSimple className="text-base" />
                 )}
                 <span>{isExporting ? "Aguardando..." : "Exportar tudo"}</span>
               </button>
@@ -395,71 +400,70 @@ export function SettingsPanel({ open, onClose, onDataChanged }: Props) {
               <button
                 onClick={handleImportDb}
                 disabled={isExporting || isImporting}
-                className="flex items-center justify-center gap-2 rounded-md border border-border bg-background/40 px-3 py-2 text-[12px] font-medium text-foreground transition-colors hover:bg-accent disabled:opacity-50"
+                className="flex items-center justify-center gap-2 rounded-lg border border-app-border bg-app-dark px-3 py-2 text-[12px] font-medium text-app-text transition-colors hover:bg-zinc-800 disabled:opacity-50"
               >
                 {isImporting ? (
-                  <Loader2 className="size-4 animate-spin" />
+                  <SpinnerGap className="text-base animate-spin" />
                 ) : (
-                  <Upload className="size-4" />
+                  <UploadSimple className="text-base" />
                 )}
                 <span>{isImporting ? "Aguardando..." : "Importar"}</span>
               </button>
             </div>
-            <p className="mt-1.5 text-[11px] text-muted-foreground">
-              Faz o dump ou a substituição do histórico completo de notas via comandos <code className="font-mono">invoke</code>.
-            </p>
           </section>
 
           {/* BLOCO 4: Zona de Perigo / Limpar Notas */}
-          <section className="border-t border-border pt-4">
-            <h3 className="mb-2 text-[13px] font-medium text-destructive">Zona de Perigo</h3>
+          <section className="border-t border-app-border pt-4">
+            <h3 className="mb-2 text-xs font-semibold text-red-400 uppercase tracking-wider">
+              Zona de Perigo
+            </h3>
 
             {showClearConfirm ? (
-              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 space-y-2.5">
-                <div className="flex items-center gap-2 text-xs font-medium text-destructive">
-                  <AlertTriangle className="size-4 shrink-0" />
+              <div className="rounded-lg border border-red-500/30 bg-red-950/20 p-3 space-y-2.5">
+                <div className="flex items-center gap-2 text-xs font-medium text-red-400">
+                  <Warning className="text-sm shrink-0" weight="fill" />
                   <span>Deseja apagar todas as notas do banco SQLite?</span>
                 </div>
-                <p className="text-[11px] text-muted-foreground leading-relaxed">
-                  Esta ação é permanente e limpará todo o histórico de notas salvas.
+                <p className="text-[11px] text-app-muted leading-relaxed">
+                  Esta ação é irreversível e limpará todas as notas salvas.
                 </p>
                 <div className="flex justify-end gap-2 pt-1">
                   <button
                     onClick={() => setShowClearConfirm(false)}
                     disabled={isClearingNotes}
-                    className="rounded-md border border-border bg-background/40 hover:bg-accent px-2.5 py-1 text-xs font-medium text-foreground transition-colors"
+                    className="rounded-lg border border-app-border bg-zinc-800 hover:bg-zinc-700 px-2.5 py-1 text-xs font-medium text-app-text transition-colors"
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={handleClearAllNotes}
                     disabled={isClearingNotes}
-                    className="flex items-center gap-1 rounded-md bg-destructive px-3 py-1 text-xs font-medium text-destructive-foreground transition-opacity hover:opacity-90 shadow-sm"
+                    className="flex items-center gap-1 rounded-lg bg-red-600 hover:bg-red-500 px-3 py-1 text-xs font-medium text-white transition-opacity shadow-sm"
                   >
                     {isClearingNotes ? (
-                      <Loader2 className="size-3 animate-spin" />
+                      <SpinnerGap className="text-xs animate-spin" />
                     ) : (
-                      <Trash2 className="size-3" />
+                      <Trash className="text-xs" />
                     )}
                     <span>Confirmar Exclusão</span>
                   </button>
                 </div>
               </div>
             ) : (
-              <div                 className="flex items-center justify-between rounded-md border border-border bg-background/40 p-3">
+              <div className="flex items-center justify-between rounded-lg border border-app-border bg-app-dark p-3">
                 <div>
-                  <div className="text-xs font-medium text-foreground">
+                  <div className="text-xs font-medium text-app-text">
                     Limpar todas as notas
                   </div>
-                  <div className="text-[11px] text-muted-foreground">
+                  <div className="text-[11px] text-app-muted">
                     Apaga todas as notas sem resetar configurações.
                   </div>
                 </div>
                 <button
                   onClick={() => setShowClearConfirm(true)}
-                  className="flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 hover:bg-destructive/20 text-destructive text-xs font-medium px-2.5 py-1.5 transition-colors shrink-0 ml-2"
+                  className="flex items-center gap-1.5 rounded-lg border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium px-2.5 py-1.5 transition-colors shrink-0 ml-2"
                 >
-                  <Trash2 className="size-3.5" />
+                  <Trash className="text-sm" />
                   <span>Limpar tudo</span>
                 </button>
               </div>
