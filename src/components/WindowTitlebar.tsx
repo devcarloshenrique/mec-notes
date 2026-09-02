@@ -1,101 +1,119 @@
 import React from "react";
-import { Maximize2, Minimize2, Minus, PanelLeft, Settings, X } from "lucide-react";
+import { Minus, Square, X, SidebarSimple, PushPin, NotePencil } from "@phosphor-icons/react";
+import { Note } from "../services/db";
 
 type Props = {
   mode: "floating" | "window";
+  activeNote: Note | null;
+  onUpdateTitle: (newTitle: string) => void;
   onToggleMode: () => void;
-  onOpenSettings: () => void;
   onMinimize: () => void;
+  onCloseToTray: () => void;
   onToggleSidebar?: () => void;
   isSidebarOpen?: boolean;
-  isToggling?: boolean;
+  onTogglePin?: (note: Note) => void;
+  onOpenSticky?: (note: Note) => void;
 };
 
 export const WindowTitlebar: React.FC<Props> = ({
   mode,
+  activeNote,
+  onUpdateTitle,
   onToggleMode,
-  onOpenSettings,
   onMinimize,
+  onCloseToTray,
   onToggleSidebar,
   isSidebarOpen = true,
-  isToggling = false,
+  onTogglePin,
+  onOpenSticky,
 }) => {
   return (
     <header
       data-tauri-drag-region
-      className="flex h-10 shrink-0 select-none items-center justify-between border-b border-border bg-card/60 pl-3 pr-2 backdrop-blur cursor-move"
+      className="h-10 border-b border-app-border flex items-center justify-between px-3 shrink-0 select-none bg-app-dark cursor-move"
     >
-      {/* Lado Esquerdo: Apenas a Logo */}
-      <div className="flex items-center pointer-events-none pl-1" data-tauri-drag-region>
-        <img
-          src="/logo_native.png"
-          alt="MEC Notes Logo"
-          className="h-[16px] w-auto select-none opacity-80 pointer-events-none"
-          draggable={false}
-        />
-      </div>
-
-      {/* Lado Direito: Ações e Controles */}
-      <div className="flex items-center gap-0.5 cursor-default">
-        {onToggleSidebar && (
+      {/* Lado Esquerdo: Botão Sidebar (se fechada) + Título da Nota Ativa */}
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        {!isSidebarOpen && onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
-            className={`grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground ${
-              !isSidebarOpen ? "opacity-60" : ""
-            }`}
-            title={isSidebarOpen ? "Ocultar barra lateral" : "Mostrar barra lateral"}
+            title="Mostrar barra lateral (Ctrl+B)"
+            className="hover:text-app-text text-app-icon transition-colors flex items-center p-1.5 rounded hover:bg-white/5"
           >
-            <PanelLeft className="size-3.5" />
+            <SidebarSimple className="text-lg" />
           </button>
         )}
 
-        <button
-          onClick={onToggleMode}
-          disabled={isToggling}
-          className={`flex items-center gap-1.5 rounded-md px-2 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground ${
-            isToggling ? "opacity-50 cursor-not-allowed" : ""
-          }`}
-          title={mode === "floating" ? "Alternar para Modo Janela" : "Alternar para Modo Flutuante"}
-        >
-          {mode === "floating" ? (
-            <Maximize2 className="size-3.5" />
-          ) : (
-            <Minimize2 className="size-3.5" />
-          )}
-          <span className="hidden sm:inline">
-            {mode === "floating" ? "Modo Janela" : "Modo Flutuante"}
+        {activeNote ? (
+          <input
+            value={activeNote.title}
+            onChange={(e) => onUpdateTitle(e.target.value)}
+            placeholder="Título da nota"
+            className="bg-transparent text-sm font-medium text-white border-none focus:ring-0 p-0 truncate min-w-[150px] flex-1 outline-none cursor-text ml-1"
+          />
+        ) : (
+          <span className="text-sm font-medium text-app-muted pointer-events-none ml-1">
+            Nenhuma nota selecionada
           </span>
-        </button>
+        )}
+      </div>
 
-        <button
-          onClick={onOpenSettings}
-          aria-label="Configurações"
-          className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          title="Configurações"
-        >
-          <Settings className="size-4" />
-        </button>
+      {/* Lado Direito: Ações da Nota e Controles da Janela */}
+      <div className="flex items-center gap-3 text-app-icon text-sm cursor-default">
+        {activeNote && (
+          <div className="flex items-center gap-1">
+            {onOpenSticky && (
+              <button
+                onClick={() => onOpenSticky(activeNote)}
+                title="Fixar na área de trabalho"
+                className="hover:text-white transition-colors p-1.5 hover:bg-white/10 rounded-md"
+              >
+                <NotePencil className="text-sm" />
+              </button>
+            )}
+            {onTogglePin && (
+              <button
+                onClick={() => onTogglePin(activeNote)}
+                title={activeNote.is_pinned ? "Desafixar do topo" : "Fixar no topo"}
+                className={`transition-colors p-1.5 hover:bg-white/10 rounded-md ${
+                  activeNote.is_pinned ? "text-white" : "hover:text-white"
+                }`}
+              >
+                <PushPin
+                  weight={activeNote.is_pinned ? "fill" : "regular"}
+                  className="text-sm"
+                />
+              </button>
+            )}
+          </div>
+        )}
 
-        <div className="mx-1 h-4 w-px bg-border" aria-hidden />
+        <div className="w-px h-3.5 bg-app-border"></div>
 
-        {/* Controles de Janela do SO */}
-        <button
-          onClick={onMinimize}
-          aria-label="Minimizar para a bandeja"
-          className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          title="Minimizar para a bandeja"
-        >
-          <Minus className="size-3.5" />
-        </button>
-
-        <button
-          onClick={onMinimize}
-          aria-label="Ocultar para a bandeja"
-          className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-          title="Fechar para a bandeja"
-        >
-          <X className="size-3.5" />
-        </button>
+        {/* Controles da Janela (Minimizar, Maximizar/Modo Janela, Fechar) */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={onMinimize}
+            title="Minimizar"
+            className="hover:text-white transition-colors p-1.5 hover:bg-white/10 rounded-md"
+          >
+            <Minus className="text-sm" />
+          </button>
+          <button
+            onClick={onToggleMode}
+            title={mode === "floating" ? "Expandir / Modo Janela" : "Modo Flutuante"}
+            className="hover:text-white transition-colors p-1.5 hover:bg-white/10 rounded-md"
+          >
+            <Square className="text-sm" />
+          </button>
+          <button
+            onClick={onCloseToTray}
+            title="Fechar para a bandeja"
+            className="hover:text-red-500 transition-colors p-1.5 hover:bg-red-500/10 rounded-md"
+          >
+            <X className="text-sm" />
+          </button>
+        </div>
       </div>
     </header>
   );
