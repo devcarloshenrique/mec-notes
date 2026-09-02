@@ -443,6 +443,59 @@ pub fn db_update_setting(conn: &Connection, key: &str, value: &str) -> Result<()
     Ok(())
 }
 
+pub fn db_save_floating_geometry(
+    conn: &Connection,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    db_update_setting(conn, "floating_x", &x.to_string())?;
+    db_update_setting(conn, "floating_y", &y.to_string())?;
+    db_update_setting(conn, "floating_width", &width.to_string())?;
+    db_update_setting(conn, "floating_height", &height.to_string())?;
+    Ok(())
+}
+
+pub fn db_get_floating_geometry(conn: &Connection) -> Result<Option<(f64, f64, f64, f64)>, String> {
+    let mut stmt = conn
+        .prepare("SELECT key, value FROM settings WHERE key IN ('floating_x', 'floating_y', 'floating_width', 'floating_height')")
+        .map_err(|e| format!("Erro ao consultar geometria flutuante: {}", e))?;
+
+    let mut x: Option<f64> = None;
+    let mut y: Option<f64> = None;
+    let mut width: Option<f64> = None;
+    let mut height: Option<f64> = None;
+
+    let rows = stmt
+        .query_map([], |row| {
+            let k: String = row.get(0)?;
+            let v: String = row.get(1)?;
+            Ok((k, v))
+        })
+        .map_err(|e| format!("Erro ao ler geometria flutuante: {}", e))?;
+
+    for row in rows {
+        if let Ok((k, v)) = row {
+            if let Ok(val) = v.parse::<f64>() {
+                match k.as_str() {
+                    "floating_x" => x = Some(val),
+                    "floating_y" => y = Some(val),
+                    "floating_width" => width = Some(val),
+                    "floating_height" => height = Some(val),
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    if let (Some(x_val), Some(y_val), Some(w_val), Some(h_val)) = (x, y, width, height) {
+        Ok(Some((x_val, y_val, w_val, h_val)))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Exportação do banco de dados para caminho de destino
 pub fn db_export_to(src_path: &Path, dest_path: &Path) -> Result<(), String> {
     if !src_path.exists() {

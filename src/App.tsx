@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 import { WindowTitlebar } from "./components/WindowTitlebar";
@@ -61,6 +61,13 @@ function MainApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const modeRef = useRef<"floating" | "window">(mode);
+  const geometryTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   // Carregar notas e configurações do SQLite via Tauri IPC
   const loadInitialData = useCallback(async () => {
@@ -201,6 +208,83 @@ Checklist inicial do projeto **mec-notes**.
       if (unlistenUpdated) unlistenUpdated();
       if (unlistenDeleted) unlistenDeleted();
       if (unlistenCleared) unlistenCleared();
+    };
+  }, []);
+
+  // Monitorar e persistir posição e tamanho da janela principal no modo flutuante
+  useEffect(() => {
+    let unlistenResize: (() => void) | null = null;
+    let unlistenMove: (() => void) | null = null;
+    let isDisposed = false;
+
+    const setupFloatingGeometryListeners = async () => {
+      try {
+        const currentWin = getCurrentWindow();
+
+        const saveGeometry = () => {
+          if (isDisposed || modeRef.current !== "floating") return;
+          if (geometryTimerRef.current) {
+            clearTimeout(geometryTimerRef.current);
+          }
+
+          geometryTimerRef.current = setTimeout(async () => {
+            if (isDisposed || modeRef.current !== "floating") return;
+            try {
+              const [pos, size, scale] = await Promise.all([
+                currentWin.outerPosition(),
+                currentWin.innerSize(),
+                currentWin.scaleFactor(),
+              ]);
+
+              if (isDisposed || modeRef.current !== "floating") return;
+
+              const logicalPos = pos.toLogical(scale);
+              const logicalSize = size.toLogical(scale);
+
+              await dbService.saveFloatingGeometry(
+                logicalPos.x,
+                logicalPos.y,
+                logicalSize.width,
+                logicalSize.height
+              );
+            } catch (err) {
+              console.error("Erro ao persistir geometria da janela flutuante:", err);
+            }
+          }, 350);
+        };
+
+        const resFn = await currentWin.onResized(() => {
+          saveGeometry();
+        });
+        if (isDisposed) {
+          resFn();
+        } else {
+          unlistenResize = resFn;
+        }
+
+        const moveFn = await currentWin.onMoved(() => {
+          saveGeometry();
+        });
+        if (isDisposed) {
+          moveFn();
+        } else {
+          unlistenMove = moveFn;
+        }
+      } catch (err) {
+        console.error("Erro ao configurar listeners de geometria flutuante:", err);
+      }
+    };
+
+    setupFloatingGeometryListeners();
+
+    return () => {
+      isDisposed = true;
+      if (geometryTimerRef.current) {
+        clearTimeout(geometryTimerRef.current);
+        geometryTimerRef.current = null;
+      }
+      if (unlistenResize) unlistenResize();
+      if (unlistenMove) unlistenMove();
     };
   }, []);
 

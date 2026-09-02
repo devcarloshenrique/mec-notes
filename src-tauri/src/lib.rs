@@ -9,10 +9,11 @@ pub mod commands {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
 
     use crate::db::{
-        db_clear_all_notes, db_delete_note, db_export_to, db_get_note_by_id, db_get_notes,
-        db_get_open_sticky_windows, db_get_settings, db_get_sticky_window, db_import_from,
-        db_save_note, db_save_sticky_geometry, db_set_sticky_open, db_update_setting, AppSettings,
-        DbState, Note, StickyWindow,
+        db_clear_all_notes, db_delete_note, db_export_to, db_get_floating_geometry,
+        db_get_note_by_id, db_get_notes, db_get_open_sticky_windows, db_get_settings,
+        db_get_sticky_window, db_import_from, db_save_floating_geometry, db_save_note,
+        db_save_sticky_geometry, db_set_sticky_open, db_update_setting, AppSettings, DbState,
+        Note, StickyWindow,
     };
 
     // ==========================================
@@ -40,46 +41,84 @@ pub mod commands {
     }
 
     #[tauri::command]
-    pub fn set_floating_mode(window: WebviewWindow) -> Result<(), String> {
+    pub fn set_floating_mode(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
         let _guard = WINDOW_MODE_LOCK.lock().map_err(|e| e.to_string())?;
 
-        // Configurações para modo flutuante: sem decorações, sempre no topo, canto inferior direito
+        // Configurações para modo flutuante: sem decorações, sempre no topo
         window.set_decorations(false).map_err(|e| e.to_string())?;
         window.set_always_on_top(true).map_err(|e| e.to_string())?;
         window.set_resizable(true).map_err(|e| e.to_string())?;
         window.set_skip_taskbar(false).map_err(|e| e.to_string())?;
 
-        let width = 800.0;
-        let height = 520.0;
-        window
-            .set_size(Size::Logical(LogicalSize { width, height }))
-            .map_err(|e| e.to_string())?;
+        let state = app.state::<DbState>();
+        let saved_geom = {
+            if let Ok(conn) = state.conn.lock() {
+                db_get_floating_geometry(&conn).unwrap_or(None)
+            } else {
+                None
+            }
+        };
 
-        // Posicionar no canto inferior direito do monitor atual
-        if let Ok(Some(monitor)) = window.current_monitor() {
-            let screen_size = monitor.size();
-            let scale_factor = monitor.scale_factor();
-            let screen_width = screen_size.width as f64 / scale_factor;
-            let screen_height = screen_size.height as f64 / scale_factor;
-
-            let margin = 24.0;
-            let taskbar_margin = 48.0; // Margem para barra de tarefas do Windows
-            let x = (screen_width - width - margin).max(0.0);
-            let y = (screen_height - height - taskbar_margin).max(0.0);
-
-            let phys_x = (x * scale_factor) as i32;
-            let phys_y = (y * scale_factor) as i32;
-
+        if let Some((x, y, w, h)) = saved_geom {
             window
-                .set_position(Position::Physical(PhysicalPosition {
-                    x: phys_x,
-                    y: phys_y,
+                .set_size(Size::Logical(LogicalSize {
+                    width: w.max(300.0),
+                    height: h.max(200.0),
                 }))
                 .map_err(|e| e.to_string())?;
+            window
+                .set_position(Position::Logical(tauri::LogicalPosition { x, y }))
+                .map_err(|e| e.to_string())?;
+        } else {
+            let width = 800.0;
+            let height = 520.0;
+            window
+                .set_size(Size::Logical(LogicalSize { width, height }))
+                .map_err(|e| e.to_string())?;
+
+            // Posicionar no canto inferior direito do monitor atual
+            if let Ok(Some(monitor)) = window.current_monitor() {
+                let screen_size = monitor.size();
+                let scale_factor = monitor.scale_factor();
+                let screen_width = screen_size.width as f64 / scale_factor;
+                let screen_height = screen_size.height as f64 / scale_factor;
+
+                let margin = 24.0;
+                let taskbar_margin = 48.0; // Margem para barra de tarefas do Windows
+                let x = (screen_width - width - margin).max(0.0);
+                let y = (screen_height - height - taskbar_margin).max(0.0);
+
+                let phys_x = (x * scale_factor) as i32;
+                let phys_y = (y * scale_factor) as i32;
+
+                window
+                    .set_position(Position::Physical(PhysicalPosition {
+                        x: phys_x,
+                        y: phys_y,
+                    }))
+                    .map_err(|e| e.to_string())?;
+            }
         }
 
         window.show().map_err(|e| e.to_string())?;
         window.set_focus().map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    #[tauri::command]
+    pub fn save_floating_geometry(
+        state: State<'_, DbState>,
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+    ) -> Result<(), String> {
+        let conn = state
+            .conn
+            .lock()
+            .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
+
+        db_save_floating_geometry(&conn, x, y, width, height)?;
         Ok(())
     }
 
@@ -614,7 +653,7 @@ pub fn run() {
                 if let Some(ref ic) = icon {
                     let _ = window.set_icon(ic.clone());
                 }
-                let _ = commands::set_floating_mode(window);
+                let _ = commands::set_floating_mode(app.handle().clone(), window);
             }
 
             // Carrega e registra o atalho global persistido no SQLite e restaura Sticky Windows abertas
@@ -663,6 +702,7 @@ pub fn run() {
             commands::set_floating_mode,
             commands::set_window_mode,
             commands::minimize_to_tray,
+            commands::save_floating_geometry,
             commands::register_global_shortcut,
             commands::open_sticky_note,
             commands::close_sticky_note,
