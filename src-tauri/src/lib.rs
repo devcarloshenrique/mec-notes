@@ -258,7 +258,7 @@ pub mod commands {
             .skip_taskbar(true)
             .always_on_top(false)
             .transparent(false)
-            .background_color(tauri::window::Color(20, 20, 21, 255))
+            .background_color(tauri::window::Color(20, 19, 19, 255))
             .resizable(true)
             .shadow(true);
 
