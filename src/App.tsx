@@ -138,10 +138,8 @@ Checklist inicial do projeto **mec-notes**.
           if (!updatedNote || !updatedNote.id) return;
 
           setNotes((prev) => {
-            const exists = prev.some((n) => n.id === updatedNote.id);
-            const next = exists
-              ? prev.map((n) => (n.id === updatedNote.id ? updatedNote : n))
-              : [updatedNote, ...prev];
+            const filtered = prev.filter((n) => n.id !== updatedNote.id);
+            const next = [updatedNote, ...filtered];
 
             return next.sort((a, b) => {
               if (a.is_pinned !== b.is_pinned) {
@@ -248,7 +246,6 @@ Checklist inicial do projeto **mec-notes**.
 
     try {
       const saved = await dbService.saveNote(newNote);
-      setNotes((prev) => [saved, ...prev]);
       setActiveNote(saved);
     } catch (err) {
       console.error("Erro ao criar nota:", err);
@@ -260,17 +257,7 @@ Checklist inicial do projeto **mec-notes**.
   // Salvar nota
   const handleSaveNote = async (updatedNote: Note) => {
     try {
-      const saved = await dbService.saveNote(updatedNote);
-      setNotes((prev) => {
-        const next = prev.map((n) => (n.id === saved.id ? saved : n));
-        return next.sort((a, b) => {
-          if (a.is_pinned !== b.is_pinned) {
-            return a.is_pinned ? -1 : 1;
-          }
-          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-        });
-      });
-      setActiveNote(saved);
+      await dbService.saveNote(updatedNote);
     } catch (err) {
       console.error("Erro ao salvar nota:", err);
     }
@@ -282,12 +269,6 @@ Checklist inicial do projeto **mec-notes**.
       // Se a nota estiver aberta como sticky, fecha a janela correspondente
       await dbService.closeStickyNote(id).catch(() => {});
       await dbService.deleteNote(id);
-      const remainingNotes = notes.filter((n) => n.id !== id);
-      setNotes(remainingNotes);
-
-      if (activeNote?.id === id) {
-        setActiveNote(remainingNotes.length > 0 ? remainingNotes[0] : null);
-      }
     } catch (err) {
       console.error("Erro ao excluir nota:", err);
     }
