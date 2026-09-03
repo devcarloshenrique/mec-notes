@@ -353,17 +353,18 @@ pub mod commands {
         state: State<'_, DbState>,
         note_id: String,
     ) -> Result<bool, String> {
-        let label = sticky_window_label(&note_id);
-        if let Some(window) = app.get_webview_window(&label) {
-            let _ = window.close();
-        }
-
         let conn = state
             .conn
             .lock()
             .map_err(|_| "Falha ao obter lock do banco de dados".to_string())?;
 
         db_set_sticky_open(&conn, &note_id, false)?;
+
+        let label = sticky_window_label(&note_id);
+        if let Some(window) = app.get_webview_window(&label) {
+            let _ = window.close();
+        }
+
         Ok(true)
     }
 
