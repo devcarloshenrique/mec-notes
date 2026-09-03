@@ -53,8 +53,23 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
   const isClosingRef = useRef<boolean>(false);
   const paletteRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const lastScrollTopRef = useRef<number>(0);
   const lastSavedAtRef = useRef<string>("");
   const isDraggingRef = useRef<boolean>(false);
+
+  // Sincronizar posição de rolagem vertical ao alternar entre preview e edição
+  useEffect(() => {
+    if (isEditing) {
+      if (textareaRef.current) {
+        textareaRef.current.scrollTop = lastScrollTopRef.current;
+      }
+    } else {
+      if (previewRef.current) {
+        previewRef.current.scrollTop = lastScrollTopRef.current;
+      }
+    }
+  }, [isEditing]);
 
   // Carregar dados da nota do SQLite
   useEffect(() => {
@@ -526,10 +541,38 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
     ) {
       return;
     }
+
+    // Se o clique ocorreu na área da barra de rolagem vertical (scrollbar track ou thumb)
+    if (previewRef.current) {
+      const pRect = previewRef.current.getBoundingClientRect();
+      if (
+        e.clientX >= pRect.left + previewRef.current.clientWidth &&
+        e.clientX <= pRect.right + 4
+      ) {
+        e.stopPropagation();
+        return;
+      }
+    }
+
+    const currentTarget = e.currentTarget as HTMLElement;
+    if (currentTarget && currentTarget.clientWidth) {
+      const rect = currentTarget.getBoundingClientRect();
+      if (
+        e.clientX >= rect.left + currentTarget.clientWidth &&
+        e.clientX <= rect.right + 4
+      ) {
+        e.stopPropagation();
+        return;
+      }
+    }
+
     if (!isEditing) {
       setIsEditing(true);
       setTimeout(() => {
-        textareaRef.current?.focus();
+        if (textareaRef.current) {
+          textareaRef.current.scrollTop = lastScrollTopRef.current;
+          textareaRef.current.focus();
+        }
       }, 50);
     }
   };
@@ -604,11 +647,16 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
         className="relative flex w-full h-full flex-col overflow-hidden text-[#e5e2e1] select-none border-[1.5px] ring-1 ring-inset ring-white/10 rounded-[10px] bg-[#141313] transition-[border-color,box-shadow] duration-200 ease-out box-border shrink-0 min-w-0 min-h-0"
         style={getNeonStyle(activeColor.accentHex || "#06b6d4", isEditing)}
       >
-        {isEditing ? (
-          /* 1. MODO EDIÇÃO: Barra Superior com Drag Icon funcional, Paleta Zen e Fechar (X) - Sem contador */
-          <div
-            className="h-8 border-b border-white/10 bg-white/[0.03] shrink-0 flex items-center justify-between px-3 transition-all duration-200 ease-out"
-          >
+        {/* 1. Barra Superior (Bandeja): Desliza sutilmente do topo no modo edição */}
+        <div
+          className={`shrink-0 overflow-hidden transition-all duration-200 ease-out flex flex-col justify-end ${
+            isEditing
+              ? "h-8 opacity-100 translate-y-0 border-b border-white/10 bg-white/[0.03]"
+              : "h-2.5 opacity-0 -translate-y-2 border-b-transparent cursor-move"
+          }`}
+          {...(!isEditing ? { "data-tauri-drag-region": true, onMouseDown: handleStartDrag } : {})}
+        >
+          <div className="h-8 flex items-center justify-between px-3 shrink-0">
             {/* Lado Esquerdo: Área de Arrasto com Ícone Funcional */}
             <div
               data-tauri-drag-region
@@ -628,7 +676,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
               )}
             </div>
 
-            {/* Lado Direito: Seletor de Cores Zen + Botão Fechar (só no clique/modo edição) */}
+            {/* Lado Direito: Seletor de Cores Zen + Botão Fechar */}
             <div
               className="no-drag relative flex items-center gap-1 shrink-0 ml-2 cursor-default"
               data-tauri-drag-region="false"
@@ -708,14 +756,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
               </button>
             </div>
           </div>
-        ) : (
-          /* 1. MODO PREVIEW: Sem barra superior visível - Área discreta invisível para mover no topo */
-          <div
-            data-tauri-drag-region
-            onMouseDown={handleStartDrag}
-            className="h-2.5 w-full shrink-0 cursor-move"
-          />
-        )}
+        </div>
 
         {/* 2. Área Central de Conteúdo */}
         <div className="flex-1 min-h-0 flex flex-col pl-3.5 pr-1.5 py-2 overflow-hidden">
@@ -725,17 +766,24 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
               ref={textareaRef}
               value={content}
               onChange={(e) => setContent(e.target.value)}
+              onScroll={(e) => {
+                lastScrollTopRef.current = e.currentTarget.scrollTop;
+              }}
               spellCheck={false}
               placeholder="Escreva em markdown..."
-              className="flex-1 w-full h-full bg-transparent font-sans text-[12.5px] leading-[1.65] text-white/70 placeholder:text-white/25 outline-none rounded focus:bg-white/[0.02] resize-none border-none focus:ring-0 p-0 overflow-y-auto note-scrollbar animate-fade-in"
+              className="flex-1 w-full h-full bg-transparent font-sans text-[12.5px] leading-[1.65] text-white/70 placeholder:text-white/25 outline-none rounded focus:bg-white/[0.02] resize-none border-none focus:ring-0 p-0 overflow-y-auto note-scrollbar"
               autoFocus
             />
           ) : (
-            /* Modo Preview: Conteúdo puro clicável (Entra em modo edição ao clicar ou focar) */
+            /* Modo Preview: Conteúdo puro clicável (Entra em modo edição ao clicar no texto) */
             <div
+              ref={previewRef}
               onClick={handleEnterEdit}
               onMouseDown={handleEnterEdit}
-              className="flex-1 min-h-0 overflow-y-auto note-scrollbar pr-1 cursor-text animate-fade-in"
+              onScroll={(e) => {
+                lastScrollTopRef.current = e.currentTarget.scrollTop;
+              }}
+              className="flex-1 min-h-0 overflow-y-auto note-scrollbar pr-1 cursor-text"
             >
               {content.trim() ? (
                 <div className="text-[12.5px] leading-[1.65] text-white/70 break-words pointer-events-none">
@@ -750,12 +798,19 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
           )}
         </div>
 
-        {/* 3. Barra Inferior de Ferramentas: Visível apenas no Modo de Edição */}
-        {isEditing && (
-          <div className="h-9 border-t border-white/10 bg-black/20 shrink-0 flex items-center justify-between px-2.5 transition-all duration-200 ease-out animate-fade-in">
+        {/* 3. Barra Inferior de Ferramentas (Bandeja): Desliza sutilmente do rodapé */}
+        <div
+          className={`shrink-0 overflow-hidden transition-all duration-200 ease-out flex flex-col justify-start ${
+            isEditing
+              ? "h-9 opacity-100 translate-y-0 border-t border-white/10 bg-black/20"
+              : "h-0 opacity-0 translate-y-full border-t-0 pointer-events-none"
+          }`}
+        >
+          <div className="h-9 flex items-center justify-between px-2.5 shrink-0">
             {/* Lado Esquerdo: Formatação Markdown + Upload Imagem */}
             <div className="flex items-center gap-0.5">
               <button
+                type="button"
                 onClick={() => insertMdSnippet("bold")}
                 className="icon-btn-sm"
                 title="Negrito"
@@ -763,6 +818,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
                 <TextB className="text-[14px]" weight="bold" />
               </button>
               <button
+                type="button"
                 onClick={() => insertMdSnippet("underline")}
                 className="icon-btn-sm"
                 title="Sublinhado"
@@ -770,6 +826,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
                 <TextUnderline className="text-[14px]" />
               </button>
               <button
+                type="button"
                 onClick={() => insertMdSnippet("strike")}
                 className="icon-btn-sm"
                 title="Tachado"
@@ -777,6 +834,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
                 <TextStrikethrough className="text-[14px]" />
               </button>
               <button
+                type="button"
                 onClick={() => insertMdSnippet("list")}
                 className="icon-btn-sm"
                 title="Bullets"
@@ -784,6 +842,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
                 <ListBullets className="text-[14px]" />
               </button>
               <button
+                type="button"
                 onClick={triggerImageUpload}
                 className="icon-btn-sm"
                 title="Upload de imagem"
@@ -795,6 +854,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
             {/* Lado Direito: Arquivar */}
             <div className="flex items-center">
               <button
+                type="button"
                 onClick={handleArchive}
                 className="icon-btn-sm hover:bg-red-500/20 hover:text-red-400"
                 title="Arquivar"
@@ -803,7 +863,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
               </button>
             </div>
           </div>
-        )}
+        </div>
       </article>
     </div>
   );
