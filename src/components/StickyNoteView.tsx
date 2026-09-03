@@ -4,12 +4,6 @@ import { listen } from "@tauri-apps/api/event";
 import {
   X,
   Check,
-  TextB,
-  TextUnderline,
-  TextStrikethrough,
-  ListBullets,
-  ImageSquare,
-  Archive,
   DotsSixVertical,
 } from "@phosphor-icons/react";
 import { dbService, Note } from "../services/db";
@@ -176,6 +170,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
           if (isDisposed) return;
           if (isDraggingRef.current) return;
           if (!focused) {
+            // Se a paleta estiver aberta ou o clique foi nela, não cancelar edição abruptamente
             setIsEditing(false);
             setIsPaletteOpen(false);
           }
@@ -444,84 +439,6 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
     await handleSave(title, content, newColorId);
   };
 
-  const handleArchive = async () => {
-    try {
-      await dbService.deleteNote(noteId);
-      await handleClose();
-    } catch (err) {
-      console.error("Erro ao arquivar/excluir nota:", err);
-    }
-  };
-
-  const triggerImageUpload = () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = () => {
-        const md = `\n![${file.name}](${reader.result})\n`;
-        const textarea = textareaRef.current;
-        if (textarea) {
-          const start = textarea.selectionStart;
-          const end = textarea.selectionEnd;
-          const newContent = content.substring(0, start) + md + content.substring(end);
-          setContent(newContent);
-          handleSave(title, newContent);
-        } else {
-          const newContent = content + md;
-          setContent(newContent);
-          handleSave(title, newContent);
-        }
-      };
-      reader.readAsDataURL(file);
-    };
-    input.click();
-  };
-
-  // Inserção de snippets Markdown no textarea
-  const insertMdSnippet = (type: "bold" | "underline" | "strike" | "list") => {
-    const textarea = textareaRef.current;
-    if (!textarea) return;
-
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const selected = content.substring(start, end);
-
-    let insertion = "";
-    let cursorOffset = 0;
-
-    switch (type) {
-      case "bold":
-        insertion = selected ? `**${selected}**` : "**texto**";
-        cursorOffset = selected ? insertion.length : 2;
-        break;
-      case "underline":
-        insertion = selected ? `<u>${selected}</u>` : "<u>texto</u>";
-        cursorOffset = selected ? insertion.length : 3;
-        break;
-      case "strike":
-        insertion = selected ? `~~${selected}~~` : "~~texto~~";
-        cursorOffset = selected ? insertion.length : 2;
-        break;
-      case "list":
-        insertion = `\n- ${selected || "item"}\n`;
-        cursorOffset = insertion.length;
-        break;
-    }
-
-    const newContent = content.substring(0, start) + insertion + content.substring(end);
-    setContent(newContent);
-    handleSave(title, newContent);
-
-    setTimeout(() => {
-      textarea.focus();
-      const pos = selected ? start + insertion.length : start + cursorOffset;
-      textarea.setSelectionRange(pos, selected ? pos : pos + (type === "list" ? 4 : 5));
-    }, 0);
-  };
   const handleResizeMouseDown = (direction: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -647,30 +564,30 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
         className="relative flex w-full h-full flex-col overflow-hidden text-[#e5e2e1] select-none border-[1.5px] ring-1 ring-inset ring-white/10 rounded-[10px] bg-[#141313] transition-[border-color,box-shadow] duration-200 ease-out box-border shrink-0 min-w-0 min-h-0"
         style={getNeonStyle(activeColor.accentHex || "#06b6d4", isEditing)}
       >
-        {/* 1. Barra Superior (Bandeja): Desliza sutilmente do topo no modo edição */}
+        {/* 1. Barra Superior (Bandeja): Confortável, com cabeçalho sutilmente maior e X mais visível */}
         <div
-          className={`shrink-0 overflow-hidden transition-all duration-200 ease-out flex flex-col justify-end ${
+          className={`shrink-0 transition-all duration-200 ease-out flex flex-col justify-end ${
             isEditing
-              ? "h-8 opacity-100 translate-y-0 border-b border-white/10 bg-white/[0.03]"
-              : "h-2.5 opacity-0 -translate-y-2 border-b-transparent cursor-move"
+              ? "h-8 opacity-100 translate-y-0 border-b border-white/5 bg-white/[0.015]"
+              : "h-2.5 opacity-0 -translate-y-2 border-b-transparent cursor-move overflow-hidden"
           }`}
           {...(!isEditing ? { "data-tauri-drag-region": true, onMouseDown: handleStartDrag } : {})}
         >
-          <div className="h-8 flex items-center justify-between px-3 shrink-0">
-            {/* Lado Esquerdo: Área de Arrasto com Ícone Funcional */}
+          <div className="h-8 flex items-center justify-between px-2.5 shrink-0">
+            {/* Lado Esquerdo: Área de Arrasto com Ícone Funcional Minimalista */}
             <div
               data-tauri-drag-region
               onMouseDown={handleStartDrag}
-              className="flex items-center gap-1.5 min-w-0 flex-1 h-full cursor-move"
+              className="flex items-center gap-1 min-w-0 flex-1 h-full cursor-move"
             >
               <div
                 className="p-1 -ml-1 rounded hover:bg-white/10 cursor-move flex items-center"
                 title="Arrastar nota"
               >
-                <DotsSixVertical className="text-white/40 text-[15px] select-none pointer-events-none" />
+                <DotsSixVertical className="text-white/35 text-[15px] select-none pointer-events-none" />
               </div>
               {isSaving && (
-                <span className="text-[9px] text-white/35 ml-1 animate-pulse pointer-events-none">
+                <span className="text-[9px] text-white/30 ml-1 animate-pulse pointer-events-none">
                   salvando...
                 </span>
               )}
@@ -678,35 +595,42 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
 
             {/* Lado Direito: Seletor de Cores Zen + Botão Fechar */}
             <div
-              className="no-drag relative flex items-center gap-1 shrink-0 ml-2 cursor-default"
+              className="no-drag relative flex items-center gap-1 shrink-0 ml-1.5 cursor-default z-40"
               data-tauri-drag-region="false"
-              onMouseDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+              }}
             >
               <div className="relative" ref={paletteRef}>
                 <button
                   type="button"
-                  onMouseDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                  }}
                   onClick={(e) => {
-                    e.preventDefault();
                     e.stopPropagation();
                     setIsPaletteOpen((prev) => !prev);
                   }}
-                  className="icon-btn-sm cursor-pointer"
+                  className="w-6 h-6 rounded flex items-center justify-center cursor-pointer transition-colors hover:bg-white/10"
                   title="Mudar cor"
                   aria-label="Mudar cor"
                 >
                   <span
-                    className="w-3 h-3 rounded-full border border-white/30 pointer-events-none"
+                    className="w-3 h-3 rounded-full border border-white/35 pointer-events-none"
                     style={{ background: activeColor.accentHex }}
                   />
                 </button>
 
                 {isPaletteOpen && (
                   <div
-                    className="no-drag absolute top-7 right-0 bg-[#201f1f] border border-white/15 rounded-xl p-2.5 shadow-2xl z-30"
+                    className="no-drag absolute top-8 right-0 bg-[#1c1b1b] border border-white/15 rounded-xl p-2 shadow-2xl z-50 pointer-events-auto"
                     data-tauri-drag-region="false"
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onClick={(e) => e.stopPropagation()}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
                   >
                     <div className="flex items-center gap-1.5">
                       {NOTE_COLORS.map((c) => {
@@ -715,13 +639,14 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
                           <button
                             key={c.id}
                             type="button"
-                            onMouseDown={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                            }}
                             onClick={(e) => {
-                              e.preventDefault();
                               e.stopPropagation();
                               handleColorSelect(c.id);
                             }}
-                            className={`w-7 h-7 rounded-full border-2 flex items-center justify-center cursor-pointer transition-transform hover:scale-105 ${
+                            className={`w-6 h-6 rounded-full border-2 flex items-center justify-center cursor-pointer transition-transform hover:scale-105 ${
                               isSelected ? "border-white" : "border-transparent"
                             }`}
                             style={{ background: c.accentHex }}
@@ -739,27 +664,28 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
                 )}
               </div>
 
-              {/* Botão Fechar (X): Presente apenas quando o usuário clica na nota */}
+              {/* Botão Fechar (X) */}
               <button
                 type="button"
-                onMouseDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                }}
                 onClick={(e) => {
-                  e.preventDefault();
                   e.stopPropagation();
                   handleClose();
                 }}
                 aria-label="Fechar nota"
                 title="Fechar nota"
-                className="icon-btn-sm hover:bg-red-500/20 hover:text-red-400 cursor-pointer"
+                className="w-6 h-6 rounded flex items-center justify-center text-white/50 hover:bg-red-500/20 hover:text-red-400 cursor-pointer transition-colors"
               >
-                <X className="text-[13px] pointer-events-none" />
+                <X className="text-[14px] pointer-events-none" weight="bold" />
               </button>
             </div>
           </div>
         </div>
 
         {/* 2. Área Central de Conteúdo */}
-        <div className="flex-1 min-h-0 flex flex-col pl-3.5 pr-1.5 py-2 overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col pl-3.5 pr-1.5 py-2.5 overflow-hidden">
           {isEditing ? (
             /* Modo Edição: Textarea Markdown Full-Height (Sem título colorido) */
             <textarea
@@ -771,7 +697,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
               }}
               spellCheck={false}
               placeholder="Escreva em markdown..."
-              className="flex-1 w-full h-full bg-transparent font-sans text-[12.5px] leading-[1.65] text-white/70 placeholder:text-white/25 outline-none rounded focus:bg-white/[0.02] resize-none border-none focus:ring-0 p-0 overflow-y-auto note-scrollbar"
+              className="flex-1 w-full h-full bg-transparent focus:bg-transparent font-sans text-[12.5px] leading-[1.65] text-white/75 placeholder:text-white/25 outline-none rounded resize-none border-none focus:ring-0 pt-0 pb-0 pl-0 pr-3 overflow-y-auto note-scrollbar"
               autoFocus
             />
           ) : (
@@ -783,10 +709,10 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
               onScroll={(e) => {
                 lastScrollTopRef.current = e.currentTarget.scrollTop;
               }}
-              className="flex-1 min-h-0 overflow-y-auto note-scrollbar pr-1 cursor-text"
+              className="flex-1 min-h-0 overflow-y-auto note-scrollbar pr-3 cursor-text"
             >
               {content.trim() ? (
-                <div className="text-[12.5px] leading-[1.65] text-white/70 break-words pointer-events-none">
+                <div className="text-[12.5px] leading-[1.65] text-white/75 break-words pointer-events-none">
                   <MarkdownPreview source={content} />
                 </div>
               ) : (
@@ -796,73 +722,6 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
               )}
             </div>
           )}
-        </div>
-
-        {/* 3. Barra Inferior de Ferramentas (Bandeja): Desliza sutilmente do rodapé */}
-        <div
-          className={`shrink-0 overflow-hidden transition-all duration-200 ease-out flex flex-col justify-start ${
-            isEditing
-              ? "h-9 opacity-100 translate-y-0 border-t border-white/10 bg-black/20"
-              : "h-0 opacity-0 translate-y-full border-t-0 pointer-events-none"
-          }`}
-        >
-          <div className="h-9 flex items-center justify-between px-2.5 shrink-0">
-            {/* Lado Esquerdo: Formatação Markdown + Upload Imagem */}
-            <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={() => insertMdSnippet("bold")}
-                className="icon-btn-sm"
-                title="Negrito"
-              >
-                <TextB className="text-[14px]" weight="bold" />
-              </button>
-              <button
-                type="button"
-                onClick={() => insertMdSnippet("underline")}
-                className="icon-btn-sm"
-                title="Sublinhado"
-              >
-                <TextUnderline className="text-[14px]" />
-              </button>
-              <button
-                type="button"
-                onClick={() => insertMdSnippet("strike")}
-                className="icon-btn-sm"
-                title="Tachado"
-              >
-                <TextStrikethrough className="text-[14px]" />
-              </button>
-              <button
-                type="button"
-                onClick={() => insertMdSnippet("list")}
-                className="icon-btn-sm"
-                title="Bullets"
-              >
-                <ListBullets className="text-[14px]" />
-              </button>
-              <button
-                type="button"
-                onClick={triggerImageUpload}
-                className="icon-btn-sm"
-                title="Upload de imagem"
-              >
-                <ImageSquare className="text-[14px]" />
-              </button>
-            </div>
-
-            {/* Lado Direito: Arquivar */}
-            <div className="flex items-center">
-              <button
-                type="button"
-                onClick={handleArchive}
-                className="icon-btn-sm hover:bg-red-500/20 hover:text-red-400"
-                title="Arquivar"
-              >
-                <Archive className="text-[15px]" />
-              </button>
-            </div>
-          </div>
         </div>
       </article>
     </div>
