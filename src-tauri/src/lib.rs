@@ -257,10 +257,9 @@ pub mod commands {
             .decorations(false)
             .skip_taskbar(true)
             .always_on_top(false)
-            .transparent(false)
-            .background_color(tauri::window::Color(20, 19, 19, 255))
-            .resizable(true)
-            .shadow(true);
+            .transparent(true)
+            .shadow(false)
+            .resizable(true);
 
         let builder = if let (Some(pos_x), Some(pos_y)) = (x, y) {
             builder.position(pos_x, pos_y)
