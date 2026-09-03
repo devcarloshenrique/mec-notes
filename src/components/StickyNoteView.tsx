@@ -10,10 +10,13 @@ import {
   ListBullets,
   ImageSquare,
   Archive,
+  PushPin,
+  DotsSixVertical,
 } from "@phosphor-icons/react";
 import { dbService, Note } from "../services/db";
 import { NOTE_COLORS, getNoteColor } from "../lib/colors";
 import { formatRelative } from "../lib/utils";
+import { MarkdownPreview } from "./MarkdownPreview";
 
 interface StickyNoteViewProps {
   noteId: string;
@@ -27,6 +30,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
   const [color, setColor] = useState<string>("cyan");
   const [isSaving, setIsSaving] = useState(false);
   const [isPaletteOpen, setIsPaletteOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(true);
 
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isInitialMountRef = useRef<boolean>(true);
@@ -35,7 +39,6 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
   const paletteRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const titleRef = useRef<HTMLHeadingElement | null>(null);
-  const categoryRef = useRef<HTMLSpanElement | null>(null);
   const lastSavedAtRef = useRef<string>("");
 
   // Carregar dados da nota do SQLite
@@ -131,6 +134,53 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
     };
   }, [isPaletteOpen]);
 
+  // Alternância entre modo de Edição (selecionada) e Preview (ao clicar fora)
+  useEffect(() => {
+    let unlistenFocus: (() => void) | null = null;
+    let isDisposed = false;
+
+    const setupFocusListeners = async () => {
+      try {
+        const win = getCurrentWindow();
+        unlistenFocus = await win.onFocusChanged(({ payload: focused }) => {
+          if (isDisposed) return;
+          if (!focused) {
+            setIsEditing(false);
+            setIsPaletteOpen(false);
+          }
+        });
+      } catch (err) {
+        console.error("Erro ao escutar foco da janela da nota adesiva:", err);
+      }
+    };
+
+    setupFocusListeners();
+
+    const handleWindowBlur = () => {
+      if (isDisposed) return;
+      setIsEditing(false);
+      setIsPaletteOpen(false);
+    };
+
+    window.addEventListener("blur", handleWindowBlur);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setIsEditing(false);
+        setIsPaletteOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      isDisposed = true;
+      if (unlistenFocus) unlistenFocus();
+      window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
   // Sincronização em tempo real via eventos Tauri
   useEffect(() => {
     let unlistenUpdated: (() => void) | null = null;
@@ -153,9 +203,6 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
             setColor(incoming.color === "blue" ? "cyan" : incoming.color || "cyan");
             if (titleRef.current && document.activeElement !== titleRef.current) {
               titleRef.current.innerText = incoming.title || "Sem título";
-            }
-            if (categoryRef.current && document.activeElement !== categoryRef.current) {
-              categoryRef.current.innerText = incoming.tags && incoming.tags.length > 0 ? incoming.tags[0] : "Geral";
             }
           }
         });
@@ -247,6 +294,15 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
       }
     };
   }, [content, note, title, handleSave]);
+
+  // Salvar imediatamente ao alternar de edição para preview
+  useEffect(() => {
+    if (!isEditing && note) {
+      if (title !== note.title || content !== note.content) {
+        handleSave(title, content);
+      }
+    }
+  }, [isEditing, note, title, content, handleSave]);
 
   // Persistência da geometria da janela
   useEffect(() => {
@@ -358,13 +414,6 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
     }
   };
 
-  const handleCategoryBlur = (e: React.FocusEvent<HTMLSpanElement>) => {
-    const raw = e.currentTarget.innerText.trim();
-    const newCat = raw || "Geral";
-    setCategory(newCat);
-    handleSave(title, content, color, newCat);
-  };
-
   const handleArchive = async () => {
     try {
       await dbService.deleteNote(noteId);
@@ -447,33 +496,110 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
   const activeColor = getNoteColor(color);
   const timeLabel = note?.updated_at ? formatRelative(note.updated_at) : "agora";
 
+  // MODO PREVIEW: Quando a nota não está selecionada (usuário clicou fora)
+  if (!isEditing) {
+    return (
+      <article
+        data-od-id={`note-card-${noteId}`}
+        onClick={() => setIsEditing(true)}
+        className={`glass-panel relative flex w-full h-full flex-col overflow-hidden text-[#e5e2e1] select-none border-2 ${activeColor.borderPreview} ${activeColor.shadowPreview} rounded-[10px] cursor-pointer group bg-[#141313] transition-none`}
+        title="Clique para editar a nota"
+      >
+        <div className="flex-1 pl-3.5 pr-2 pt-3 pb-2.5 flex flex-col overflow-hidden">
+          {/* Top Row: Pin (se houver) + Título da Nota + Timestamp + Botão Fechar discreto */}
+          <div
+            data-tauri-drag-region
+            className="flex items-center justify-between gap-2 mb-2 shrink-0 cursor-move"
+          >
+            <div
+              data-tauri-drag-region
+              className="flex items-center gap-1.5 min-w-0 flex-1 cursor-move"
+            >
+              {note?.is_pinned && (
+                <span title="Fixada" className="shrink-0 flex items-center">
+                  <PushPin
+                    weight="fill"
+                    className={`text-[13px] ${activeColor.textAccent}`}
+                  />
+                </span>
+              )}
+              <h2
+                className={`text-[14px] font-semibold tracking-tight truncate ${activeColor.textAccentLight} group-hover:text-white transition-colors`}
+              >
+                {title || "Sem título"}
+              </h2>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[10px] font-bold tracking-widest uppercase text-white/25 select-none font-mono">
+                {timeLabel}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleClose();
+                }}
+                className="icon-btn-sm opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/20 hover:text-red-400 ml-1"
+                title="Fechar nota"
+                aria-label="Fechar nota"
+              >
+                <X className="text-[13px]" />
+              </button>
+            </div>
+          </div>
+
+          {/* Conteúdo Markdown Formatado / Preview */}
+          <div className="flex-1 min-h-0 overflow-y-auto note-scrollbar pr-1">
+            {content.trim() ? (
+              <div className="text-[12.5px] leading-[1.65] text-white/65 break-words">
+                <MarkdownPreview source={content} />
+              </div>
+            ) : (
+              <div className="text-[12.5px] leading-[1.65] text-white/25 italic">
+                — vazio —
+              </div>
+            )}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  // MODO EDIÇÃO: Quando a nota está selecionada / focada
   return (
     <article
       data-od-id={`note-card-focused-${noteId}`}
-      className={`glass-panel-focused relative flex h-screen w-screen flex-col overflow-hidden text-[#e5e2e1] select-none border ${activeColor.borderActive} ${activeColor.shadowActive} ring-1 ring-white/10`}
+      className={`glass-panel-focused relative flex w-full h-full flex-col overflow-hidden text-[#e5e2e1] select-none border-2 ${activeColor.borderActive} ${activeColor.shadowActive} ring-1 ring-inset ring-white/10 rounded-[10px] bg-[#141313] transition-none`}
+      style={{
+        boxShadow: activeColor.accentHex
+          ? `inset 0 0 20px ${activeColor.accentHex}26, 0 0 24px ${activeColor.accentHex}33`
+          : undefined,
+      }}
     >
-      {/* 1. Barra Superior de Metadados - Exatamente ZenNotes: h-8, px-3, border-b border-white/10, bg-white/[0.03] */}
+      {/* 1. Barra Superior de Metadados: Título da Nota editável, Timestamp, Seletor de Cores e Fechar */}
       <div
         data-tauri-drag-region
         className="h-8 flex items-center justify-between px-3 border-b border-white/10 bg-white/[0.03] shrink-0 cursor-move"
       >
         <div data-tauri-drag-region className="flex items-center gap-1.5 min-w-0 flex-1 cursor-move">
-          <span
-            ref={categoryRef}
+          <DotsSixVertical className="text-white/30 text-[14px] select-none hidden sm:block shrink-0" />
+          <h2
+            ref={titleRef}
             contentEditable
             suppressContentEditableWarning
-            data-placeholder="Categoria"
-            onBlur={handleCategoryBlur}
+            data-placeholder="Título da nota..."
+            onBlur={handleTitleBlur}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
                 e.currentTarget.blur();
+                textareaRef.current?.focus();
               }
             }}
-            className="text-[10px] font-bold tracking-widest uppercase text-white/45 hover:text-white/70 hover:bg-white/5 px-1.5 py-0.5 rounded outline-none truncate max-w-[110px] cursor-text"
+            className={`text-[12.5px] font-semibold tracking-tight ${activeColor.textAccent} hover:text-white outline-none rounded px-1.5 py-0.5 focus:bg-white/[0.04] leading-tight truncate max-w-[170px] sm:max-w-[240px] cursor-text`}
+            title={title || "Sem título"}
           >
-            {category}
-          </span>
+            {title || "Sem título"}
+          </h2>
           <span className="text-white/10 select-none">·</span>
           <span className="text-[10px] text-white/25 font-mono select-none">
             {timeLabel}
@@ -490,7 +616,10 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
           {/* Seletor de Cores ZenNotes */}
           <div className="relative" ref={paletteRef}>
             <button
-              onClick={() => setIsPaletteOpen((prev) => !prev)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsPaletteOpen((prev) => !prev);
+              }}
               className="icon-btn-sm"
               title="Mudar cor"
             >
@@ -501,15 +630,21 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
             </button>
 
             {isPaletteOpen && (
-              <div className="no-drag absolute top-7 right-0 bg-[#201f1f] border border-white/15 rounded-xl p-2.5 shadow-2xl z-20">
+              <div
+                className="no-drag absolute top-7 right-0 bg-[#201f1f] border border-white/15 rounded-xl p-2.5 shadow-2xl z-20"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <div className="flex items-center gap-1.5">
                   {NOTE_COLORS.map((c) => {
-                    const isSelected = (color || "cyan") === c.id;
+                    const isSelected = activeColor.id === c.id;
                     return (
                       <button
                         key={c.id}
-                        onClick={() => handleColorSelect(c.id)}
-                        className={`w-7 h-7 rounded-full border-2 flex items-center justify-center cursor-pointer ${
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleColorSelect(c.id);
+                        }}
+                        className={`w-7 h-7 rounded-full border-2 flex items-center justify-center cursor-pointer transition-transform hover:scale-105 ${
                           isSelected ? "border-white" : "border-transparent"
                         }`}
                         style={{ background: c.accentHex }}
@@ -528,7 +663,10 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
 
           {/* Botão Fechar Discreto */}
           <button
-            onClick={handleClose}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleClose();
+            }}
             aria-label="Fechar nota"
             title="Fechar nota"
             className="icon-btn-sm hover:bg-red-500/20 hover:text-red-400"
@@ -538,35 +676,16 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
         </div>
       </div>
 
-      {/* 2. Área de Conteúdo Central - Exatamente ZenNotes: px-3.5 py-3 space-y-2 */}
-      <div className="flex-1 min-h-0 overflow-y-auto note-scrollbar px-3.5 py-3 space-y-2">
-        {/* Título H2 contenteditable Estilo ZenNotes */}
-        <h2
-          ref={titleRef}
-          contentEditable
-          suppressContentEditableWarning
-          data-placeholder="Título da nota..."
-          onBlur={handleTitleBlur}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              e.currentTarget.blur();
-            }
-          }}
-          className={`text-[14px] font-semibold tracking-tight ${activeColor.textAccent} outline-none rounded px-1 -mx-1 focus:bg-white/[0.04] leading-tight break-words`}
-        >
-          {title}
-        </h2>
-
-        {/* Corpo Markdown */}
+      {/* 2. Área de Conteúdo Central: Expande 100% da altura, carrega todo o conteúdo sem limite fixo e sem folga na scrollbar */}
+      <div className="flex-1 min-h-0 flex flex-col pl-3.5 pr-1.5 py-2.5 overflow-hidden">
+        {/* Corpo Markdown Full-Height */}
         <textarea
           ref={textareaRef}
           value={content}
           onChange={(e) => setContent(e.target.value)}
           spellCheck={false}
           placeholder="Escreva em markdown..."
-          className="w-full bg-transparent font-sans text-[12.5px] leading-[1.65] text-white/65 outline-none rounded px-1 -mx-1 focus:bg-white/[0.04] min-h-[88px] resize-none border-none focus:ring-0 p-0"
-          rows={7}
+          className="flex-1 w-full h-full bg-transparent font-sans text-[12.5px] leading-[1.65] text-white/65 placeholder:text-white/25 outline-none rounded focus:bg-white/[0.02] resize-none border-none focus:ring-0 p-0 overflow-y-auto note-scrollbar"
         />
       </div>
 
@@ -615,7 +734,7 @@ export const StickyNoteView: React.FC<StickyNoteViewProps> = ({ noteId }) => {
         <div className="flex items-center">
           <button
             onClick={handleArchive}
-            className="icon-btn-sm"
+            className="icon-btn-sm hover:bg-red-500/20 hover:text-red-400"
             title="Arquivar"
           >
             <Archive className="text-[15px]" />
